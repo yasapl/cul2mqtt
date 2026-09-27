@@ -48,6 +48,10 @@ fi
 if bashio::config.has_value 'fht_central'; then
     args+=(--fht-central "$(bashio::config 'fht_central')")
 fi
+FS20_DEVICES="$(bashio::config 'fs20_devices')"
+if [ "${FS20_DEVICES}" != '[]' ]; then
+    args+=(--fs20-devices "${FS20_DEVICES}")
+fi
 if bashio::config.true 'publish_raw'; then
     args+=(--publish-raw)
 fi

@@ -95,6 +95,27 @@ describe('discoveryModel', () => {
         assert.equal(climate.act_tpl, "{{ 'heating' if value_json.val | float(0) > 10 else 'idle' }}");
     });
 
+    test('explicit FS20 actuators announce stateful switch and light entities', () => {
+        const [bridge, light, sw] = discoveryModel({
+            name: 'cul',
+            items: new Map(),
+            fs20Devices: [
+                {name: 'Hall light', address: '6c4800', type: 'light'},
+                {name: 'Pump', address: '6C4801', type: 'switch'},
+            ],
+        });
+        assert.equal(bridge.id, 'cul2mqtt_cul');
+        assert.equal(light.device.name, 'Hall light');
+        assert.equal(light.components.control.p, 'light');
+        assert.equal(light.components.control.cmd_t, 'cul/set/fs20/6C4800');
+        assert.equal(light.components.control.bri_cmd_t, 'cul/set/fs20/6C4800');
+        assert.equal(light.components.control.bri_scl, 100);
+        assert.equal(light.components.control.stat_t, 'cul/status/fs20/6C4800/state');
+        assert.equal(light.components.control.opt, undefined);
+        assert.equal(sw.components.control.p, 'switch');
+        assert.equal(sw.components.control.cmd_t, 'cul/set/fs20/6C4801');
+    });
+
     test('online items become per-device availability, not sensors', () => {
         const items = new Map([
             ['ws/1/temperature', {val: 24.5, retain: true, raw: 'ws/1/temperature'}],

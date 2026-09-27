@@ -35,6 +35,11 @@ export const OPTIONS = {
         type: 'string',
         describe: 'FHT central code (4 hex digits) needed to send set/fht commands',
     },
+    'fs20-devices': {
+        type: 'string',
+        default: '[]',
+        describe: 'JSON array of explicit FS20 switch/light definitions (name, address, type)',
+    },
     'offline-detection': {
         type: 'boolean',
         describe: 'mark silent devices offline on <protocol>/<address>/online (see README)',

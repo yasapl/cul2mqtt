@@ -63,6 +63,24 @@ line project. It supports serial CUL/COC/SCC devices as well as network CUNO/CUL
    Home Assistant's MQTT service and its credentials automatically by default; set `mqtt_url` only
    for an external broker.
 
+   FS20 actuators must be defined explicitly because they cannot report their state:
+
+   ```yaml
+   fs20_devices:
+     - name: Hall light
+       address: 6C4800
+       type: light
+   ```
+
+   An FS20 switch can use the native `on-for-timer` command when it is turned on:
+
+   ```yaml
+   fs20_devices:
+     - name: AS1
+       address: 6C4801
+       on_time: 300
+   ```
+
 3. Start the app. It will auto-discover supported radio devices and publish them to Home Assistant
    through MQTT Discovery. Set `log_level: debug` when troubleshooting; the app log then includes
    decoded `cul <` and sent `cul >` traffic.

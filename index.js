@@ -46,6 +46,27 @@ if (config.mapFile) {
     map = JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+let fs20Devices = [];
+try {
+    fs20Devices = JSON.parse(config.fs20Devices || '[]');
+    if (!Array.isArray(fs20Devices)) {
+        throw new Error('must be a JSON array');
+    }
+} catch (err) {
+    throw new Error(`invalid --fs20-devices: ${err.message}`);
+}
+const fs20DeviceByAddress = new Map(
+    fs20Devices
+        .map((device) => [
+            String(device?.address || '')
+                .trim()
+                .toUpperCase(),
+            device,
+        ])
+        .filter(([address]) => /^[0-9A-F]{6}$/.test(address)),
+);
+const fs20OffTimers = new Map();
+
 /** items seen so far (published name → last value) for discovery */
 const seen = new Map();
 let discoveryTimer = null;
@@ -61,7 +82,7 @@ const adapter = createAdapter({
     config,
     deviceLabel: 'cul',
     info: {cul: culLabel, mode: config.culMode},
-    discovery: () => discoveryModel({name: config.name, items: seen, jsonPayloads: config.jsonPayloads}),
+    discovery: () => discoveryModel({name: config.name, items: seen, jsonPayloads: config.jsonPayloads, fs20Devices}),
     onSet: handleSet,
     onShutdown: () => {
         clearInterval(offlineTimer);
@@ -151,7 +172,7 @@ async function handleSet(parts, value, topic) {
     switch (command.type) {
         case 'fs20':
             log.debug('cul > FS20', command.housecode, command.address, command.cmd, command.time);
-            return cul.cmd('FS20', command.housecode, command.address, command.cmd, command.time);
+            return sendFs20(command);
         case 'fht':
             if (!config.fhtCentral) {
                 throw new Error('set/fht needs --fht-central');
@@ -169,6 +190,40 @@ async function handleSet(parts, value, topic) {
             return cul.write(command.data);
         default:
             throw new Error('unhandled command type ' + command.type);
+    }
+}
+
+async function sendFs20(command) {
+    const address = `${command.housecode}${command.address}`.replace(/\s+/g, '').toUpperCase();
+    const definition = fs20DeviceByAddress.get(address);
+    let {cmd, time} = command;
+    const onTime = Number(definition?.on_time);
+    if (cmd === 'on' && Number.isFinite(onTime) && onTime > 0) {
+        cmd = 'on-for-timer';
+        time = onTime;
+    }
+    await cul.cmd('FS20', command.housecode, command.address, cmd, time);
+    if (!definition) {
+        return;
+    }
+    const item = `fs20/${address}/state`;
+    if (fs20OffTimers.has(address)) {
+        clearTimeout(fs20OffTimers.get(address));
+        fs20OffTimers.delete(address);
+    }
+    const isOn = cmd !== 'off' && cmd !== 'reset';
+    pubStatus(item, isOn, {retain: true});
+    if (cmd === 'on-for-timer' && Number.isFinite(Number(time)) && Number(time) > 0) {
+        fs20OffTimers.set(
+            address,
+            setTimeout(
+                () => {
+                    fs20OffTimers.delete(address);
+                    pubStatus(item, false, {retain: true});
+                },
+                Number(time) * 1000,
+            ),
+        );
     }
 }
 
