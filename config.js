@@ -55,6 +55,11 @@ export const OPTIONS = {
         describe: 'additionally publish every raw culfw line on <name>/raw (not retained)',
         default: false,
     },
+    'publish-events': {
+        type: 'boolean',
+        describe: 'publish every parsed field update on <name>/event/... (not retained)',
+        default: true,
+    },
     'raw-set': {
         type: 'boolean',
         describe: 'accept raw culfw commands on <name>/set/raw (unrestricted RF transmitter!)',

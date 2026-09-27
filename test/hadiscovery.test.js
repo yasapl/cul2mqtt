@@ -78,6 +78,23 @@ describe('discoveryModel', () => {
         assert.equal(plain.components.open.val_tpl, "{{ 'ON' if value == 'true' else 'OFF' }}");
     });
 
+    test('FHT80b announces a native climate entity using the raw hexadecimal address for commands', () => {
+        const items = new Map([
+            ['living_room/measured_temp', {val: 20.5, retain: true, raw: 'fht/4d3f/measured_temp'}],
+            ['living_room/desired_temp', {val: 21, retain: true, raw: 'fht/4d3f/desired_temp'}],
+            ['living_room/mode', {val: 'AUTO', retain: true, raw: 'fht/4d3f/mode'}],
+            ['living_room/actuator', {val: 25, retain: true, raw: 'fht/4d3f/actuator'}],
+        ]);
+        const [, dev] = discoveryModel({name: 'cul', items});
+        const climate = dev.components.climate;
+        assert.equal(climate.p, 'climate');
+        assert.equal(climate.curr_temp_t, 'cul/status/living_room/measured_temp');
+        assert.equal(climate.temp_cmd_t, 'cul/set/fht/4d3f/desired-temp');
+        assert.equal(climate.mode_cmd_t, 'cul/set/fht/4d3f/mode');
+        assert.deepEqual(climate.modes, ['auto', 'heat']);
+        assert.equal(climate.act_tpl, "{{ 'heating' if value_json.val | float(0) > 10 else 'idle' }}");
+    });
+
     test('online items become per-device availability, not sensors', () => {
         const items = new Map([
             ['ws/1/temperature', {val: 24.5, retain: true, raw: 'ws/1/temperature'}],

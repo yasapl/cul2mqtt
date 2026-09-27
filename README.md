@@ -44,6 +44,7 @@ raw traffic (`cul <` / `cul >`).
 | `--learn-intervals`                  | on                 | widen offline timeouts from observed per-device message gaps                     |
 | `--state-dir`                        | `$STATE_DIRECTORY` | directory for persisted state (learned intervals); set by systemd                |
 | `--publish-raw`                      | off                | additionally publish every raw culfw line on `cul/raw`                           |
+| `--publish-events`                   | on                 | publish every parsed update on `cul/event/...` (not retained)                    |
 | `--raw-set`                          | off                | accept raw culfw commands on `cul/set/raw` (see below)                           |
 | `-u, --mqtt-url`                     | `mqtt://localhost` | broker URL, see [MQTT.js](https://github.com/mqttjs/MQTT.js#connect-using-a-url) |
 | `--mqtt-username`, `--mqtt-password` |                    | broker credentials                                                               |
@@ -228,8 +229,8 @@ mosquitto_pub -t cul/set/fs20/6C4802 -m '{"cmd": "on-for-timer", "time": 300}'
 
 ### `cul/set/fht/<device>/<command>`
 
-Sends an FHT command (`desired-temp`, `mode`, `day-temp`, `night-temp`, ... as in
-[culfw](http://culfw.de/commandref.html)); needs `--fht-central <code>`. The payload is the value,
+Sends an FHT command (`desired-temp` or `mode`); needs `--fht-central <code>`. The device is its
+four-digit hexadecimal RF address (as shown in the status topic). The payload is the value,
 alternatively JSON `{"cmd": "desired-temp", "value": 21.5}` on `cul/set/fht/<device>`.
 
 ```
@@ -242,6 +243,14 @@ With `--raw-set`, any culfw command line is written to the CUL (`F6C480011`, `X2
 an unrestricted RF transmitter — protect your broker with authentication/ACLs before enabling it.
 `--publish-raw` does the opposite: every line received from the CUL is published on `cul/raw`
 (not retained), useful for unsupported protocols.
+
+### Processed event monitor
+
+`--publish-events` is on by default. Every parsed field update is also published as a non-retained
+JSON message on `cul/event/<protocol>/<address>/<field>` (or the mapped item name), for example
+`cul/event/fht/4d3f/measured_temp`. It contains `protocol`, `address`, `field`, `value`, optional
+`rssi`, and `received_at`. This is the MQTT equivalent of FHEM's Event Monitor; unlike `cul/raw`,
+it shows decoded updates rather than radio frames.
 
 ### `cul/maintenance/set/<command>`
 
@@ -264,6 +273,10 @@ manufacturer/model derived from the protocol (`ELV S300TH`, `ELV EM1000`, `ELV F
 _Connected_ diagnostic. Devices are announced as they show up on air (each address has to send
 once); availability follows `cul/connected` — and, with offline detection (the default), the
 per-device `online` item: a device that stops sending becomes _unavailable_ in HA on its own.
+
+An FHT80b that reports `measured_temp` also announces a native MQTT climate entity. Its target
+temperature uses `cul/set/fht/<hex-address>/desired-temp`; HA's `auto` maps to FHT `AUTO`, while
+HA's `heat` maps to FHT `MANU`. The existing FHT80TF contact discovery remains a binary sensor.
 
 FS20 is receive-only for the CUL, so actuators cannot be discovered and no switches are created
 automatically; an FS20 remote appears as a device with one sensor holding the last command.

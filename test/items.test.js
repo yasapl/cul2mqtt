@@ -99,6 +99,16 @@ describe('itemsFor', () => {
         assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmdRaw: 'ff', cmd: 'UNKNOWN'}}), []);
     });
 
+    test('FHT warnings add diagnostic booleans', () => {
+        assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmd: 'warnings', value: 'BATT LOW'}}), [
+            {item: 'fht/4d3f/warnings', val: 'BATT LOW', retain: true},
+            {item: 'fht/4d3f/battery_low', val: true, retain: true},
+            {item: 'fht/4d3f/low_temperature', val: false, retain: true},
+            {item: 'fht/4d3f/window_open', val: false, retain: true},
+            {item: 'fht/4d3f/window_sensor_error', val: false, retain: true},
+        ]);
+    });
+
     test('messages without address (culfw replies) and parse errors yield nothing', () => {
         assert.deepEqual(itemsFor({protocol: 'culfw', data: {version: '1.66', hardware: 'CSM868'}}), []);
         assert.deepEqual(itemsFor({protocol: 'TCM97001', address: '159', data: {error: 'no matching decoder'}}), []);

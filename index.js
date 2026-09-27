@@ -8,6 +8,7 @@ import config from './config.js';
 import pkg from './package.json' with {type: 'json'};
 import {itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
+import {fhtCommand} from './lib/fht-command.js';
 import {discoveryModel} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -50,6 +51,7 @@ const seen = new Map();
 let discoveryTimer = null;
 let cul = null;
 let lastError = null;
+let fhtCentralConfigured = false;
 
 const culLabel = config.host ? `${config.host}:${config.port}` : config.serialport;
 
@@ -153,8 +155,14 @@ async function handleSet(parts, value, topic) {
             if (!config.fhtCentral) {
                 throw new Error('set/fht needs --fht-central');
             }
-            log.debug('cul > FHT', config.fhtCentral, command.device, command.cmd, command.value);
-            return cul.cmd('FHT', config.fhtCentral, command.device, command.cmd, command.value);
+            if (!fhtCentralConfigured) {
+                throw new Error('FHT central code is not configured yet');
+            }
+            {
+                const data = fhtCommand(command.device, command.cmd, command.value);
+                log.debug('cul > FHT', data);
+                return cul.write(data);
+            }
         case 'raw':
             log.debug('cul > raw', command.data);
             return cul.write(command.data);
@@ -192,15 +200,31 @@ function connect() {
     log.debug('cul connecting', culLabel);
     cul = new Cul(culOptions());
 
-    cul.on('ready', () => {
+    cul.on('ready', async () => {
         lastError = null;
         log.info('cul ready', culLabel);
+        fhtCentralConfigured = false;
+        if (config.fhtCentral) {
+            const central = String(config.fhtCentral).trim().toUpperCase();
+            if (!/^[0-9A-F]{4}$/.test(central)) {
+                log.warn('invalid --fht-central; expected 4 hexadecimal digits');
+            } else {
+                try {
+                    await cul.write(`T01${central}`);
+                    fhtCentralConfigured = true;
+                    log.debug('cul > FHT central configured');
+                } catch (err) {
+                    log.warn('cannot configure FHT central code -', err.message);
+                }
+            }
+        }
         adapter.setDeviceConnected(true);
     });
 
     cul.on('data', onData);
 
     cul.on('close', () => {
+        fhtCentralConfigured = false;
         if (adapter.shuttingDown) {
             return;
         }
@@ -258,6 +282,21 @@ function onData(raw, obj) {
         }
         seen.set(name, {val, retain, raw: item, device: obj.device});
         pubStatus(name, val, {retain});
+        if (config.publishEvents) {
+            const [protocol, address, ...field] = item.split('/');
+            adapter.publish(
+                adapter.topic(`event/${name}`),
+                {
+                    protocol,
+                    address,
+                    field: field.join('/'),
+                    value: val,
+                    ...(typeof obj.rssi === 'number' && {rssi: obj.rssi}),
+                    received_at: new Date().toISOString(),
+                },
+                {retain: false},
+            );
+        }
     }
     if (newItems) {
         scheduleDiscovery();
