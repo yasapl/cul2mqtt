@@ -1,5 +1,5 @@
 name: CUL2MQTT
-version: '0.2.1'
+version: '0.2.2'
 slug: cul2mqtt
 description: Bridge a CUL-compatible device to Home Assistant MQTT discovery
 url: https://github.com/yasapl/cul2mqtt
@@ -24,6 +24,7 @@ options:
   coc: false
   scc: false
   fht_central: ''
+  fs20_devices: []
   instance_name: cul
   mqtt_url: ''
   mqtt_username: ''
@@ -51,6 +52,11 @@ schema:
   coc: bool
   scc: bool
   fht_central: str
+  fs20_devices:
+    - name: str
+      address: match(^[0-9A-Fa-f]{6}$)
+      type: list(switch|light)?
+      on_time: int?
   instance_name: str
   mqtt_url: str?
   mqtt_username: str?
