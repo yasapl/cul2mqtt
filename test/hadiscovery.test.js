@@ -112,6 +112,10 @@ describe('discoveryModel', () => {
         assert.equal(light.components.control.bri_scl, 100);
         assert.equal(light.components.control.stat_t, 'cul/status/fs20/6C4800/state');
         assert.equal(light.components.control.opt, undefined);
+        assert.equal(light.components.on_time.p, 'number');
+        assert.equal(light.components.on_time.cmd_t, 'cul/set/fs20/6C4800/on_time');
+        assert.equal(light.components.on_time.min, 0);
+        assert.equal(light.components.on_time.max, 15_360);
         assert.equal(sw.components.control.p, 'switch');
         assert.equal(sw.components.control.cmd_t, 'cul/set/fs20/6C4801');
     });

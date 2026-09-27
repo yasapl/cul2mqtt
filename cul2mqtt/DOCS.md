@@ -6,19 +6,19 @@ Assistant MQTT Discovery.
 
 ## Configuration
 
-| Option           | Meaning                                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `serialport`     | CUL serial device. This is used when `host` is empty.                                                                 |
-| `host` / `port`  | Network CUNO/CUL hostname and TCP port. Setting `host` selects TCP instead of serial.                                 |
-| `cul_mode`       | `SlowRF`, `MORITZ`, or `AskSin`, matching the original project.                                                       |
-| `coc` / `scc`    | Enable these for the corresponding Busware Raspberry Pi devices.                                                      |
-| `fht_central`    | Four-digit hexadecimal FHT central ID. Required for temperature and mode commands.                                    |
-| `fs20_devices`   | Explicit FS20 actuators: `name`, six-digit hexadecimal `address`, optional `type`, and optional `on_time` in seconds. |
-| `instance_name`  | MQTT topic prefix; leave as `cul` unless more than one CUL is used.                                                   |
-| `mqtt_url`       | Optional external MQTT broker URL. Leave empty (the default) to use Home Assistant's MQTT service.                    |
-| `log_level`      | Set `debug` to show `cul <` decoded input and `cul >` commands in the app log.                                        |
-| `publish_raw`    | Also publish unprocessed CUL lines on `<instance_name>/raw`.                                                          |
-| `publish_events` | Publish each decoded update on `<instance_name>/event/...`; enabled by default.                                       |
+| Option           | Meaning                                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `serialport`     | CUL serial device. This is used when `host` is empty.                                                                         |
+| `host` / `port`  | Network CUNO/CUL hostname and TCP port. Setting `host` selects TCP instead of serial.                                         |
+| `cul_mode`       | `SlowRF`, `MORITZ`, or `AskSin`, matching the original project.                                                               |
+| `coc` / `scc`    | Enable these for the corresponding Busware Raspberry Pi devices.                                                              |
+| `fht_central`    | Four-digit hexadecimal FHT central ID. Required for temperature and mode commands.                                            |
+| `fs20_devices`   | Explicit FS20 actuators: `name`, six-digit hexadecimal `address`, optional `type`, and optional initial `on_time` in seconds. |
+| `instance_name`  | MQTT topic prefix; leave as `cul` unless more than one CUL is used.                                                           |
+| `mqtt_url`       | Optional external MQTT broker URL. Leave empty (the default) to use Home Assistant's MQTT service.                            |
+| `log_level`      | Set `debug` to show `cul <` decoded input and `cul >` commands in the app log.                                                |
+| `publish_raw`    | Also publish unprocessed CUL lines on `<instance_name>/raw`.                                                                  |
+| `publish_events` | Publish each decoded update on `<instance_name>/event/...`; enabled by default.                                               |
 
 By default the app obtains its MQTT host, username and password automatically from Home Assistant's
 MQTT service. Nothing needs to be entered for the normal HA/Mosquitto setup. It can instead use any
@@ -28,9 +28,10 @@ Serial devices are mapped into the app automatically. Files such as map files an
 stored in the app configuration directory and referenced by their in-container path.
 
 FS20 actuators do not report their state, so define each one explicitly. The displayed state is
-the last command sent, not a confirmation from the actuator. Set `on_time` to send `on-for-timer`
-whenever the Home Assistant switch is turned on; the displayed state returns to off when the timer
-expires.
+the last command sent, not a confirmation from the actuator. Each device gets an **On timer**
+number entity. Set it to `1`–`15360` seconds to send `on-for-timer` whenever the switch is turned
+on, or set it to `0` for normal continuous on. `on_time` sets its initial value. The displayed
+switch state returns to off when the timer expires.
 
 ```yaml
 fs20_devices:

@@ -72,7 +72,9 @@ line project. It supports serial CUL/COC/SCC devices as well as network CUNO/CUL
        type: light
    ```
 
-   An FS20 switch can use the native `on-for-timer` command when it is turned on:
+   Every defined FS20 device also gets an **On timer** number entity. Set it to a duration in
+   seconds and turning on the switch sends native `on-for-timer`; set it to `0` for normal on.
+   `on_time` below is the initial value:
 
    ```yaml
    fs20_devices:
