@@ -1,5 +1,5 @@
 name: CUL2MQTT
-version: '0.2.0'
+version: '0.2.1'
 slug: cul2mqtt
 description: Bridge a CUL-compatible device to Home Assistant MQTT discovery
 url: https://github.com/yasapl/cul2mqtt
