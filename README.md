@@ -30,6 +30,36 @@ raw traffic (`cul <` / `cul >`).
 `cul2mqtt --help` lists all options; every option can also be set via an environment variable
 (`CUL2MQTT_SERIALPORT`, `CUL2MQTT_MQTT_URL`, `CUL2MQTT_NAME`, ...).
 
+### Home Assistant OS app (network MAXCUL)
+
+This repository can also be installed as a custom Home Assistant app (formerly an add-on). It runs
+under the Home Assistant Supervisor and connects directly to a MAXCUL/A-culfw device over TCP, so
+neither FHEM nor a separate host is required. The app uses Home Assistant's Mosquitto Broker
+service automatically.
+
+1. In Home Assistant, open **Settings → Apps → App Store**, open the menu, then add this custom
+   repository URL:
+
+   ```
+   https://github.com/yasapl/cul2mqtt
+   ```
+
+2. Install **CUL2MQTT**, then configure at least:
+
+   ```yaml
+   maxcul_host: 192.168.1.50
+   maxcul_port: 2323
+   fht_central: '1234'
+   ```
+
+   Use the IP address and TCP port currently configured for the FHEM CUL device. `fht_central` is
+   the four-digit hexadecimal central ID and is needed only to send FHT temperature or mode
+   commands. Leave `instance_name` as `cul` unless another CUL already uses that MQTT topic prefix.
+
+3. Start the app. It will auto-discover supported radio devices and publish them to Home Assistant
+   through MQTT Discovery. Set `log_level: debug` when troubleshooting; the app log then includes
+   decoded `cul <` and sent `cul >` traffic.
+
 | option                               | default            | description                                                                      |
 | ------------------------------------ | ------------------ | -------------------------------------------------------------------------------- |
 | `-s, --serialport`                   | `/dev/ttyACM0`     | serial port of the CUL / COC / SCC, or `auto` (see above)                        |
