@@ -1,7 +1,7 @@
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {itemsFor, mapItem, snakeCase} from '../lib/items.js';
+import {fhtMeasuredTemperature, itemsFor, mapItem, snakeCase} from '../lib/items.js';
 
 describe('itemsFor', () => {
     test('FS20 command is a non-retained event, rssi retained', () => {
@@ -157,6 +157,26 @@ describe('itemsFor', () => {
                 'moritz/0a1b2c/battery_low',
                 'moritz/0a1b2c/battery_state',
             ],
+        );
+    });
+});
+
+describe('fhtMeasuredTemperature', () => {
+    test('combines the FHT low and high bytes when the high byte arrives', () => {
+        const parts = new Map();
+        assert.equal(
+            fhtMeasuredTemperature(
+                {protocol: 'FHT', address: '4240', data: {cmd: 'measured-low', valueRaw: 'df'}},
+                parts,
+            ),
+            undefined,
+        );
+        assert.deepEqual(
+            fhtMeasuredTemperature(
+                {protocol: 'FHT', address: '4240', data: {cmd: 'measured-high', valueRaw: '00'}},
+                parts,
+            ),
+            {item: 'fht/4240/measured_temp', val: 22.3, retain: true},
         );
     });
 });

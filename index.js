@@ -6,7 +6,7 @@ import Cul from 'cul';
 import {createAdapter, createLogger, runDiscovery, autoAddress} from 'mqtt-interfaces-core';
 import config from './config.js';
 import pkg from './package.json' with {type: 'json'};
-import {itemsFor, mapItem} from './lib/items.js';
+import {fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
 import {fhtCommand} from './lib/fht-command.js';
 import {discoveryModel} from './lib/hadiscovery.js';
@@ -52,6 +52,7 @@ let discoveryTimer = null;
 let cul = null;
 let lastError = null;
 let fhtCentralConfigured = false;
+const fhtMeasurementParts = new Map();
 
 const culLabel = config.host ? `${config.host}:${config.port}` : config.serialport;
 
@@ -262,6 +263,10 @@ function onData(raw, obj) {
         return;
     }
     const items = itemsFor(obj);
+    const measuredTemperature = fhtMeasuredTemperature(obj, fhtMeasurementParts);
+    if (measuredTemperature) {
+        items.push(measuredTemperature);
+    }
     if (items.length === 0) {
         if (obj.address !== undefined) {
             log.debug(
