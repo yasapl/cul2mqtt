@@ -10,6 +10,7 @@ import pkg from './package.json' with {type: 'json'};
 import {fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
+import {optimisticFs20State} from './lib/fs20-state.js';
 import {discoveryModel} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -75,6 +76,7 @@ if (fs20DevicesFile && fs.existsSync(fs20DevicesFile)) {
 }
 let fs20DeviceByAddress = new Map();
 const fs20OnTimes = new Map();
+const fs20States = new Map();
 const fs20OffTimers = new Map();
 const fhtInitialized = new Set();
 const fhtInitialising = new Set();
@@ -140,9 +142,18 @@ function setFs20Devices(value, {persist = false} = {}) {
             fs20OnTimes.delete(address);
         }
     }
+    for (const address of fs20States.keys()) {
+        if (!fs20DeviceByAddress.has(address)) {
+            fs20States.delete(address);
+        }
+    }
     for (const device of definitions) {
         if (!fs20OnTimes.has(device.address)) {
             fs20OnTimes.set(device.address, device.on_time);
+        }
+        if (!fs20States.has(device.address)) {
+            fs20States.set(device.address, false);
+            pubStatus(`fs20/${device.address}/state`, false, {retain: true});
         }
     }
     if (persist) {
@@ -315,7 +326,18 @@ async function handleSet(parts, value, topic) {
             {
                 const data = fhtCommand(command.device, command.cmd, command.value);
                 log.debug('cul > FHT', data);
-                return cul.write(data);
+                await cul.write(data);
+                const field = command.cmd === 'mode' ? 'mode' : command.cmd === 'desired-temp' ? 'desired_temp' : null;
+                if (field) {
+                    const value =
+                        field === 'mode'
+                            ? String(command.value).toUpperCase() === 'AUTO'
+                                ? 'AUTO'
+                                : 'MANU'
+                            : Number(command.value);
+                    publishFhtField(command.device, field, value);
+                }
+                return;
             }
         case 'raw':
             log.debug('cul > raw', command.data);
@@ -359,7 +381,7 @@ async function syncFhtTime(device) {
 
 function hasFhtField(address, field) {
     const raw = `fht/${address}/${field}`;
-    return [...seen.values()].some((item) => item.raw === raw);
+    return [...seen.values()].some((item) => String(item.raw).toUpperCase() === raw.toUpperCase());
 }
 
 function publishFhtField(address, field, value) {
@@ -390,12 +412,12 @@ async function initialiseFht(address) {
     fhtInitialising.add(address);
     try {
         const mode = fhtCommand(address, 'mode', 'MANU');
-        const temperature = fhtCommand(address, 'desired-temp', 10);
-        log.info('cul initialising FHT', address, 'to manual, 10 °C');
+        const temperature = fhtCommand(address, 'desired-temp', 16);
+        log.info('cul initialising FHT', address, 'to manual, 16 °C');
         await cul.write(mode);
         await cul.write(temperature);
         publishFhtField(address, 'mode', 'MANU');
-        publishFhtField(address, 'desired_temp', 10);
+        publishFhtField(address, 'desired_temp', 16);
         fhtInitialized.add(address);
         saveFhtState();
     } catch (err) {
@@ -423,7 +445,8 @@ async function sendFs20(command) {
         clearTimeout(fs20OffTimers.get(address));
         fs20OffTimers.delete(address);
     }
-    const isOn = cmd !== 'off' && cmd !== 'reset';
+    const isOn = optimisticFs20State(cmd, fs20States.get(address));
+    fs20States.set(address, isOn);
     pubStatus(item, isOn, {retain: true});
     if (cmd === 'on-for-timer' && Number.isFinite(Number(time)) && Number(time) > 0) {
         fs20OffTimers.set(
@@ -431,6 +454,7 @@ async function sendFs20(command) {
             setTimeout(
                 () => {
                     fs20OffTimers.delete(address);
+                    fs20States.set(address, false);
                     pubStatus(item, false, {retain: true});
                 },
                 Number(time) * 1000,
@@ -588,11 +612,17 @@ function onData(raw, obj) {
             publishOnline(device, true);
         }
     }
-    if (
-        String(obj.protocol).toUpperCase() === 'FHT' &&
-        hasFhtField(String(obj.address).toUpperCase(), 'measured_temp')
-    ) {
-        void initialiseFht(obj.address);
+    if (String(obj.protocol).toUpperCase() === 'FHT') {
+        const address = String(obj.address).toUpperCase();
+        if (hasFhtField(address, 'measured_temp')) {
+            if (fhtInitialized.has(address)) {
+                if (!hasFhtField(address, 'mode')) {
+                    publishFhtField(address, 'mode', 'MANU');
+                }
+            } else {
+                void initialiseFht(obj.address);
+            }
+        }
     }
 }
 
