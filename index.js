@@ -8,7 +8,7 @@ import config from './config.js';
 import pkg from './package.json' with {type: 'json'};
 import {fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
-import {fhtCommand} from './lib/fht-command.js';
+import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {discoveryModel} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -72,6 +72,9 @@ const fs20OnTimes = new Map(
     }),
 );
 const fs20OffTimers = new Map();
+const fhtInitialized = new Set();
+const fhtInitialising = new Set();
+const fhtStateFile = config.stateDir ? path.join(config.stateDir, 'fht-initialized.json') : null;
 
 /** items seen so far (published name → last value) for discovery */
 const seen = new Map();
@@ -121,6 +124,17 @@ if (stateFile && fs.existsSync(stateFile)) {
         log.warn('cannot read', stateFile, '-', err.message);
     }
 }
+if (fhtStateFile && fs.existsSync(fhtStateFile)) {
+    try {
+        for (const address of JSON.parse(fs.readFileSync(fhtStateFile, 'utf8'))) {
+            if (/^[0-9A-F]{4}$/i.test(address)) {
+                fhtInitialized.add(address.toUpperCase());
+            }
+        }
+    } catch (err) {
+        log.warn('cannot read', fhtStateFile, '-', err.message);
+    }
+}
 
 function saveState() {
     if (!stateFile) {
@@ -131,6 +145,18 @@ function saveState() {
         fs.writeFileSync(stateFile, JSON.stringify(offline.state()));
     } catch (err) {
         log.warn('cannot save', stateFile, '-', err.message);
+    }
+}
+
+function saveFhtState() {
+    if (!fhtStateFile) {
+        return;
+    }
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        fs.writeFileSync(fhtStateFile, JSON.stringify([...fhtInitialized].sort()));
+    } catch (err) {
+        log.warn('cannot save', fhtStateFile, '-', err.message);
     }
 }
 
@@ -180,6 +206,10 @@ async function handleSet(parts, value, topic) {
         pubStatus(`fs20/${address}/on_time`, seconds, {retain: true});
         return;
     }
+    if (String(parts[0]).toLowerCase() === 'fht' && parts.length === 3 && parts[2] === 'sync-time') {
+        await syncFhtTime(parts[1]);
+        return;
+    }
     let command;
     try {
         command = commandFor(parts, value, {rawSet: config.rawSet});
@@ -211,6 +241,86 @@ async function handleSet(parts, value, topic) {
             return cul.write(command.data);
         default:
             throw new Error('unhandled command type ' + command.type);
+    }
+}
+
+function fhtReady() {
+    if (!cul || !cul.connected) {
+        throw new Error('cul not connected');
+    }
+    if (!config.fhtCentral || !fhtCentralConfigured) {
+        throw new Error('FHT central code is not configured yet');
+    }
+}
+
+async function syncFhtTime(device) {
+    fhtReady();
+    const address = String(device).trim().toUpperCase();
+    if (!/^[0-9A-F]{4}$/.test(address)) {
+        throw new Error('sync-time needs a 4-digit hexadecimal FHT address');
+    }
+    const now = new Date();
+    const settings = [
+        ['60', now.getFullYear() % 100],
+        ['61', now.getMonth() + 1],
+        ['62', now.getDate()],
+        ['63', now.getHours()],
+        ['64', now.getMinutes()],
+    ];
+    log.info('cul syncing time for FHT', address);
+    for (const [command, value] of settings) {
+        const data = fhtRawCommand(address, command, value);
+        log.debug('cul > FHT', data);
+        await cul.write(data);
+        await new Promise((resolve) => setTimeout(resolve, 750));
+    }
+}
+
+function hasFhtField(address, field) {
+    const raw = `fht/${address}/${field}`;
+    return [...seen.values()].some((item) => item.raw === raw);
+}
+
+function publishFhtField(address, field, value) {
+    const item = `fht/${address}/${field}`;
+    const name = mapItem(item, map);
+    const isNew = !seen.has(name);
+    seen.set(name, {val: value, retain: true, raw: item});
+    pubStatus(name, value, {retain: true});
+    if (isNew) {
+        scheduleDiscovery();
+    }
+}
+
+async function initialiseFht(address) {
+    address = String(address).toUpperCase();
+    if (fhtInitialized.has(address) || fhtInitialising.has(address)) {
+        return;
+    }
+    if (hasFhtField(address, 'mode') && hasFhtField(address, 'desired_temp')) {
+        fhtInitialized.add(address);
+        saveFhtState();
+        return;
+    }
+    if (!config.fhtCentral || !fhtCentralConfigured) {
+        log.warn('FHT', address, 'has incomplete state; configure fht_central to initialise it');
+        return;
+    }
+    fhtInitialising.add(address);
+    try {
+        const mode = fhtCommand(address, 'mode', 'MANU');
+        const temperature = fhtCommand(address, 'desired-temp', 10);
+        log.info('cul initialising FHT', address, 'to manual, 10 °C');
+        await cul.write(mode);
+        await cul.write(temperature);
+        publishFhtField(address, 'mode', 'MANU');
+        publishFhtField(address, 'desired_temp', 10);
+        fhtInitialized.add(address);
+        saveFhtState();
+    } catch (err) {
+        log.warn('cannot initialise FHT', address, '-', err.message);
+    } finally {
+        fhtInitialising.delete(address);
     }
 }
 
@@ -396,6 +506,12 @@ function onData(raw, obj) {
         if (transition && transition.changed) {
             publishOnline(device, true);
         }
+    }
+    if (
+        String(obj.protocol).toUpperCase() === 'FHT' &&
+        hasFhtField(String(obj.address).toUpperCase(), 'measured_temp')
+    ) {
+        void initialiseFht(obj.address);
     }
 }
 

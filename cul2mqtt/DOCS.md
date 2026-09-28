@@ -49,4 +49,7 @@ the local build. Later app releases will pin their corresponding tested CUL2MQTT
 
 FHT80b devices announce a native climate entity after they report a temperature. FHT80TF contacts
 announce as binary sensors. The FHT climate entity currently supports target temperature and
-auto/manual mode; schedules and holiday mode are intentionally not exposed yet.
+auto/manual mode; schedules and holiday mode are intentionally not exposed yet. If a newly
+discovered FHT has a temperature but no mode or target temperature, it is set once to manual mode
+and 10 °C. Use the device's **Sync time** button to send date and time manually; no time sync is
+performed automatically.

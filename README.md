@@ -334,6 +334,10 @@ per-device `online` item: a device that stops sending becomes _unavailable_ in H
 An FHT80b that reports `measured_temp` also announces a native MQTT climate entity. Its target
 temperature uses `cul/set/fht/<hex-address>/desired-temp`; HA's `auto` maps to FHT `AUTO`, while
 HA's `heat` maps to FHT `MANU`. The existing FHT80TF contact discovery remains a binary sensor.
+When a newly discovered FHT has temperature but no known mode or target temperature, CUL2MQTT sets
+it once to manual mode and 10 °C, then persists that initialisation marker. Each FHT device also
+has a **Sync time** button. It sends date and time only when explicitly pressed; it is never run
+automatically.
 
 FS20 is receive-only for the CUL, so actuators cannot be discovered and no switches are created
 automatically; an FS20 remote appears as a device with one sensor holding the last command.

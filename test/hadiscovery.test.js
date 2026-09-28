@@ -93,6 +93,8 @@ describe('discoveryModel', () => {
         assert.equal(climate.mode_cmd_t, 'cul/set/fht/4d3f/mode');
         assert.deepEqual(climate.modes, ['auto', 'heat']);
         assert.equal(climate.act_tpl, "{{ 'heating' if value_json.val | float(0) > 10 else 'idle' }}");
+        assert.equal(dev.components.sync_time.p, 'button');
+        assert.equal(dev.components.sync_time.cmd_t, 'cul/set/fht/4d3f/sync-time');
     });
 
     test('explicit FS20 actuators announce stateful switch and light entities', () => {

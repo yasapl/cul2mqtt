@@ -1,7 +1,7 @@
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {fhtCommand} from '../lib/fht-command.js';
+import {fhtCommand, fhtRawCommand} from '../lib/fht-command.js';
 
 describe('fhtCommand', () => {
     test('encodes the raw hexadecimal FHT address and half-degree temperature', () => {
@@ -18,5 +18,12 @@ describe('fhtCommand', () => {
         assert.throws(() => fhtCommand('123', 'mode', 'AUTO'), /4-digit hexadecimal/);
         assert.throws(() => fhtCommand('4d3f', 'desired-temp', 21.2), /0.5/);
         assert.throws(() => fhtCommand('4d3f', 'holiday1', 1), /unsupported/);
+    });
+});
+
+describe('fhtRawCommand', () => {
+    test('encodes a validated setting byte', () => {
+        assert.equal(fhtRawCommand('423c', '63', 7), 'T423C6307');
+        assert.throws(() => fhtRawCommand('423c', '63', 256), /one byte/);
     });
 });
