@@ -120,8 +120,6 @@ function restoreFhtStatus(parts, payload) {
     }
 }
 
-
-
 const culLabel = config.host ? `${config.host}:${config.port}` : config.serialport;
 
 const adapter = createAdapter({

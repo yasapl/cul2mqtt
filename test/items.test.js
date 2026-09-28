@@ -207,7 +207,7 @@ describe('fhtClockItemsFromValue', () => {
     test('rebuilds clock and calendar values from old retained hex-byte states', () => {
         const parts = new Map();
         assert.deepEqual(fhtClockItemsFromValue('423c', 'hour', 3, parts), []);
-        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 15, parts), [
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', '0F', parts), [
             {item: 'fht/423c/time', val: '03:15', retain: true},
         ]);
         assert.deepEqual(fhtClockItemsFromValue('423c', 'year', '1A', parts), []);
