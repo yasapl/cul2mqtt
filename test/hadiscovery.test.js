@@ -294,7 +294,7 @@ describe("discoveryModel", () => {
       light.components.control.stat_t,
       "cul/status/fs20/6C4800/state",
     );
-    assert.equal(light.components.control.opt, true);
+    assert.equal(light.components.control.opt, false);
     assert.equal(
       light.components.control.stat_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
@@ -327,7 +327,7 @@ describe("discoveryModel", () => {
     assert.equal(sw.components.control.p, "switch");
     assert.equal(sw.device.sn, "6C4801");
     assert.equal(sw.components.control.cmd_t, "cul/set/fs20/6C4801");
-    assert.equal(sw.components.control.opt, true);
+    assert.equal(sw.components.control.opt, false);
     assert.equal(
       sw.components.control.stat_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
