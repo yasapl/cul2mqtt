@@ -33,6 +33,9 @@ number entity. Set it to `1`–`15360` seconds to send `on-for-timer` whenever t
 on, or set it to `0` for normal continuous on. `on_time` sets its initial value. The displayed
 switch state returns to off when the timer expires.
 
+Use **Open Web UI → FS20 devices** to add, edit, or remove FS20 switches and lights. Changes are
+stored by the app and take effect immediately; editing `fs20_devices` YAML is no longer needed.
+
 ```yaml
 fs20_devices:
   - name: Hall light

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import Cul from 'cul';
 import {createAdapter, createLogger, runDiscovery, autoAddress} from 'mqtt-interfaces-core';
@@ -46,31 +47,34 @@ if (config.mapFile) {
     map = JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-let fs20Devices = [];
+function normaliseFs20Devices(value) {
+    const list = value === null ? [] : Array.isArray(value) ? value : [value];
+    return list.map((device) => ({
+        name: String(device?.name || '').trim(),
+        address: String(device?.address || '')
+            .trim()
+            .toUpperCase(),
+        type: String(device?.type || 'switch').toLowerCase(),
+        on_time: Number(device?.on_time) || 0,
+    }));
+}
+
+let fs20Devices;
 try {
-    const parsed = JSON.parse(config.fs20Devices || '[]');
-    // Home Assistant's app config may serialise an empty list as null and a single nested
-    // definition as an object. Accept both forms; the discovery model validates each entry.
-    fs20Devices = parsed === null ? [] : Array.isArray(parsed) ? parsed : [parsed];
+    fs20Devices = normaliseFs20Devices(JSON.parse(config.fs20Devices || '[]'));
 } catch (err) {
     throw new Error(`invalid --fs20-devices JSON: ${err.message}`);
 }
-const fs20DeviceByAddress = new Map(
-    fs20Devices
-        .map((device) => [
-            String(device?.address || '')
-                .trim()
-                .toUpperCase(),
-            device,
-        ])
-        .filter(([address]) => /^[0-9A-F]{6}$/.test(address)),
-);
-const fs20OnTimes = new Map(
-    [...fs20DeviceByAddress].map(([address, device]) => {
-        const seconds = Number(device.on_time);
-        return [address, Number.isFinite(seconds) && seconds >= 0 ? seconds : 0];
-    }),
-);
+const fs20DevicesFile = config.stateDir ? path.join(config.stateDir, 'fs20-devices.json') : null;
+if (fs20DevicesFile && fs.existsSync(fs20DevicesFile)) {
+    try {
+        fs20Devices = normaliseFs20Devices(JSON.parse(fs.readFileSync(fs20DevicesFile, 'utf8')));
+    } catch {
+        // Keep the app configuration definitions if an interrupted UI save left an invalid file.
+    }
+}
+let fs20DeviceByAddress = new Map();
+const fs20OnTimes = new Map();
 const fs20OffTimers = new Map();
 const fhtInitialized = new Set();
 const fhtInitialising = new Set();
@@ -105,6 +109,83 @@ const adapter = createAdapter({
     },
 });
 const {log, pubStatus} = adapter;
+
+function saveFs20Devices() {
+    if (!fs20DevicesFile) {
+        return;
+    }
+    fs.mkdirSync(config.stateDir, {recursive: true});
+    fs.writeFileSync(fs20DevicesFile, JSON.stringify(fs20Devices, null, 2));
+}
+
+function setFs20Devices(value, {persist = false} = {}) {
+    const definitions = normaliseFs20Devices(value);
+    const invalid = definitions.find(
+        (device) => !device.name || !/^[0-9A-F]{6}$/.test(device.address) || !['switch', 'light'].includes(device.type),
+    );
+    if (invalid) {
+        throw new Error('Each FS20 device needs a name, a 6-digit hexadecimal address, and switch or light type');
+    }
+    const addresses = new Set();
+    for (const device of definitions) {
+        if (addresses.has(device.address)) {
+            throw new Error(`Duplicate FS20 address: ${device.address}`);
+        }
+        addresses.add(device.address);
+    }
+    fs20Devices = definitions;
+    fs20DeviceByAddress = new Map(definitions.map((device) => [device.address, device]));
+    for (const address of fs20OnTimes.keys()) {
+        if (!fs20DeviceByAddress.has(address)) {
+            fs20OnTimes.delete(address);
+        }
+    }
+    for (const device of definitions) {
+        if (!fs20OnTimes.has(device.address)) {
+            fs20OnTimes.set(device.address, device.on_time);
+        }
+    }
+    if (persist) {
+        saveFs20Devices();
+    }
+    adapter.markDiscoveryDirty();
+    adapter.publishDiscovery();
+}
+
+setFs20Devices(fs20Devices);
+
+const FS20_UI = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>FS20 Devices</title><style>body{font:16px system-ui;margin:20px;max-width:680px}fieldset{margin:12px 0;padding:12px}label{display:block;margin:8px 0}input,select,button{font:inherit;padding:7px}input{width:100%;box-sizing:border-box}.row{display:flex;gap:8px}.row>*{flex:1}button{cursor:pointer}#status{min-height:24px}</style></head><body><h2>FS20 devices</h2><p>Changes are saved by this app and take effect immediately.</p><div id="devices"></div><p><button id="add" type="button">Add device</button> <button id="save" type="button">Save</button></p><div id="status"></div><script>const box=document.querySelector('#devices'),status=document.querySelector('#status');function field(label,type,value){const l=document.createElement('label'),i=document.createElement('input');l.textContent=label;i.type=type;i.value=value||'';l.append(i);return[l,i]}function row(d={type:'switch',on_time:0}){const f=document.createElement('fieldset'),r=document.createElement('div');r.className='row';const[n,name]=field('Name','text',d.name),[a,address]=field('Address (6 hex digits)','text',d.address),[t,timer]=field('Initial timer (seconds)','number',d.on_time);timer.min=0;timer.max=15360;const type=document.createElement('select');for(const v of ['switch','light']){const o=new Option(v,v,v===d.type,v===d.type);type.add(o)}const tl=document.createElement('label');tl.textContent='Type';tl.append(type);r.append(n,a,tl,t);const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';remove.onclick=()=>f.remove();f.append(r,remove);f.data=()=>({name:name.value.trim(),address:address.value.trim().toUpperCase(),type:type.value,on_time:Number(timer.value)||0});box.append(f)}async function load(){const r=await fetch('api/fs20');for(const d of await r.json())row(d)}async function save(){const devices=[...box.children].map(x=>x.data());const r=await fetch('api/fs20',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(devices)});const out=await r.json();status.textContent=r.ok?'Saved.':out.error||'Could not save.'}document.querySelector('#add').onclick=()=>row();document.querySelector('#save').onclick=save;load()</script></body></html>`;
+
+function startFs20Ui() {
+    http.createServer(async (request, response) => {
+        if (request.method === 'GET' && (request.url === '/' || request.url === '')) {
+            response.writeHead(200, {'content-type': 'text/html; charset=utf-8'}).end(FS20_UI);
+            return;
+        }
+        if (request.method === 'GET' && request.url === '/api/fs20') {
+            response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify(fs20Devices));
+            return;
+        }
+        if (request.method === 'POST' && request.url === '/api/fs20') {
+            let body = '';
+            for await (const chunk of request) {
+                body += chunk;
+                if (body.length > 32_768) {
+                    response.writeHead(413).end();
+                    return;
+                }
+            }
+            try {
+                setFs20Devices(JSON.parse(body), {persist: true});
+                response.writeHead(200, {'content-type': 'application/json'}).end('{}');
+            } catch (err) {
+                response.writeHead(400, {'content-type': 'application/json'}).end(JSON.stringify({error: err.message}));
+            }
+            return;
+        }
+        response.writeHead(404).end();
+    }).listen(8099, '0.0.0.0', () => log.info('FS20 configuration UI ready'));
+}
 
 /*
  * offline detection — devices that stop sending get a retained <protocol>/<address>/online item
@@ -528,4 +609,5 @@ function scheduleDiscovery() {
 }
 
 adapter.start();
+startFs20Ui();
 connect();
