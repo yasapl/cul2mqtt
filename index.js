@@ -7,7 +7,7 @@ import Cul from 'cul';
 import {createAdapter, createLogger, runDiscovery, autoAddress} from 'mqtt-interfaces-core';
 import config from './config.js';
 import pkg from './package.json' with {type: 'json'};
-import {fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
+import {fhtClockItems, fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
@@ -89,6 +89,7 @@ let cul = null;
 let lastError = null;
 let fhtCentralConfigured = false;
 const fhtMeasurementParts = new Map();
+const fhtClockParts = new Map();
 
 const culLabel = config.host ? `${config.host}:${config.port}` : config.serialport;
 
@@ -562,9 +563,8 @@ function onData(raw, obj) {
     }
     const items = itemsFor(obj);
     const measuredTemperature = fhtMeasuredTemperature(obj, fhtMeasurementParts);
-    if (measuredTemperature) {
-        items.push(measuredTemperature);
-    }
+    if (measuredTemperature) items.push(measuredTemperature);
+    items.push(...fhtClockItems(obj, fhtClockParts));
     if (items.length === 0) {
         if (obj.address !== undefined) {
             log.debug(
@@ -583,6 +583,7 @@ function onData(raw, obj) {
             newItems = true;
             log.info('cul new item', name, obj.device ? `(${obj.device})` : '');
         }
+        log.info('cul event', name, '=', val);
         seen.set(name, {val, retain, raw: item, device: obj.device});
         pubStatus(name, val, {retain});
         if (config.publishEvents) {
