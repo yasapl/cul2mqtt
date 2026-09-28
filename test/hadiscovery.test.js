@@ -312,9 +312,12 @@ describe("discoveryModel", () => {
       light.components.timer_remaining.val_tpl,
       "{{ value_json.val }}",
     );
+    assert.equal(light.components.on_time.uniq_id, "cul2mqtt_cul_fs20_6C4800_on_time");
+    assert.equal("timer_1_duration" in light.components, false);
     for (let slot = 1; slot <= 5; slot += 1) {
       const field = slot === 1 ? "on_time" : `timer_${slot}`;
-      const timer = light.components[`timer_${slot}_duration`];
+      const componentId = slot === 1 ? "on_time" : `timer_${slot}_duration`;
+      const timer = light.components[componentId];
       assert.equal(timer.p, "number");
       assert.equal(timer.opt, false);
       assert.equal(timer.val_tpl, "{{ value_json.val }}");
