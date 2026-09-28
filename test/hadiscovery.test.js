@@ -49,6 +49,7 @@ describe("discoveryModel", () => {
     assert.deepEqual(ws.device, {
       name: "ws/1",
       via_device: "cul2mqtt_cul",
+      sn: "1",
       mf: "ELV",
       mdl: "S300TH",
     });
@@ -71,6 +72,7 @@ describe("discoveryModel", () => {
     assert.deepEqual(doorbell.device, {
       name: "doorbell",
       via_device: "cul2mqtt_cul",
+      sn: "6C4800",
       mf: "ELV",
       mdl: "FS20",
     });
@@ -105,6 +107,7 @@ describe("discoveryModel", () => {
     const [, device] = discoveryModel({ name: "MAX_CUL", items });
     assert.equal(device.id, "cul2mqtt_MAX_CUL_hms_B24E");
     assert.equal(device.device.name, "hms/B24E");
+    assert.equal(device.device.sn, "B24E");
     assert.equal(device.components.temperature.uniq_id, "cul2mqtt_MAX_CUL_hms_B24E_temperature");
   });
 
@@ -116,6 +119,7 @@ describe("discoveryModel", () => {
     assert.deepEqual(dev.device, {
       name: "foo/1",
       via_device: "cul2mqtt_cul",
+      sn: "1",
       mdl: "FOO",
     });
     assert.equal(dev.components.x.val_tpl, undefined);
@@ -179,6 +183,10 @@ describe("discoveryModel", () => {
     assert.equal(climate.min_temp, 10);
     assert.equal(climate.max_temp, 30);
     assert.equal(climate.precision, 0.5);
+    assert.equal(climate.temp_unit, "C");
+    assert.equal(dev.components.measured_temp.dev_cla, "temperature");
+    assert.equal(dev.components.measured_temp.unit_of_meas, "°C");
+    assert.equal(dev.device.sn, "4d3f");
     assert.equal(dev.device.mf, "eQ-3");
     assert.equal(
       climate.act_tpl,
@@ -197,6 +205,7 @@ describe("discoveryModel", () => {
     const [, fht] = discoveryModel({ name: "MAX_CUL", items });
     assert.equal(fht.id, "cul2mqtt_MAX_CUL_fht_423c");
     assert.deepEqual(fht.device.ids, ["423c"]);
+    assert.equal(fht.device.sn, "423c");
     assert.equal(
       fht.components.measured_temp.uniq_id,
       "cul2mqtt_MAX_CUL_fht_423c_measured_temp",
@@ -276,6 +285,7 @@ describe("discoveryModel", () => {
     });
     assert.equal(bridge.id, "cul2mqtt_cul");
     assert.equal(light.device.name, "Hall light");
+    assert.equal(light.device.sn, "6C4800");
     assert.equal(light.components.control.p, "light");
     assert.equal(light.components.control.cmd_t, "cul/set/fs20/6C4800");
     assert.equal(light.components.control.bri_cmd_t, "cul/set/fs20/6C4800");
@@ -294,6 +304,7 @@ describe("discoveryModel", () => {
     assert.equal(light.components.on_time.min, 0);
     assert.equal(light.components.on_time.max, 15_360);
     assert.equal(sw.components.control.p, "switch");
+    assert.equal(sw.device.sn, "6C4801");
     assert.equal(sw.components.control.cmd_t, "cul/set/fs20/6C4801");
     assert.equal(sw.components.control.opt, true);
     assert.equal(

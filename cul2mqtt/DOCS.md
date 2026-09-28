@@ -38,8 +38,10 @@ Changes take effect after saving the configuration and restarting the app.
 
 Home Assistant discovery IDs preserve their existing spelling so Home Assistant can match the
 device and entity registry entries created by earlier releases. FHT thermostats also keep their
-house-code identifier. On upgrade, retained lowercase discovery announcements from version 0.2.14
-are cleared as devices are rediscovered.
+house-code identifier as the device serial number. Other RF devices expose their radio address in
+the same device-info field. FHT current temperature sensors and climate entities explicitly use °C.
+On upgrade, retained lowercase discovery announcements from version 0.2.14 are cleared as devices
+are rediscovered.
 
 ```yaml
 fs20_devices:
