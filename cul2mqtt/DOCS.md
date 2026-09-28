@@ -29,9 +29,13 @@ stored in the app configuration directory and referenced by their in-container p
 
 FS20 actuators do not report their state, so define each one explicitly. Home Assistant shows an
 optimistic state based on the last command sent, not a confirmation from the actuator. Each device
-gets an **On timer** number entity. Set it to `1`–`15360` seconds to send `on-for-timer` whenever the
-switch is turned on, or set it to `0` for normal continuous on. `on_time` sets its initial value.
-The displayed switch state returns to off when the timer expires.
+gets five timer duration number entities and five matching **Turn on for timer** buttons. Set a
+duration to `0.25`–`15360` seconds and press its button to send `on-for-timer`. FS20 rounds a requested
+duration up to the next supported radio interval; the app log reports the effective interval when
+it differs. The main switch shows
+on for that duration, then returns to off. The regular switch always sends ordinary on/off commands,
+regardless of the saved timer values. A duration of `0` disables that timer button. Values persist
+across app restarts. The YAML `on_time` option sets the initial value for timer 1.
 
 Configure FS20 switches and lights in the app's **Configuration** page under `fs20_devices`.
 Changes take effect after saving the configuration and restarting the app.

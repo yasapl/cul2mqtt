@@ -299,11 +299,22 @@ describe("discoveryModel", () => {
       light.components.control.stat_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
     );
-    assert.equal(light.components.on_time.p, "number");
-    assert.equal(light.components.on_time.opt, true);
-    assert.equal(light.components.on_time.cmd_t, "cul/set/fs20/6C4800/on_time");
-    assert.equal(light.components.on_time.min, 0);
-    assert.equal(light.components.on_time.max, 15_360);
+    for (let slot = 1; slot <= 5; slot += 1) {
+      const field = slot === 1 ? "on_time" : `timer_${slot}`;
+      const timer = light.components[`timer_${slot}_duration`];
+      assert.equal(timer.p, "number");
+      assert.equal(timer.opt, true);
+      assert.equal(timer.cmd_t, `cul/set/fs20/6C4800/${field}`);
+      assert.equal(timer.min, 0);
+      assert.equal(timer.max, 15_360);
+      assert.equal(timer.step, 0.25);
+      assert.equal(timer.unit_of_meas, "s");
+
+      const button = light.components[`timer_${slot}_button`];
+      assert.equal(button.p, "button");
+      assert.equal(button.cmd_t, `cul/set/fs20/6C4800/on-for-timer/${slot}`);
+      assert.equal(button.pl_prs, "PRESS");
+    }
     assert.equal(sw.components.control.p, "switch");
     assert.equal(sw.device.sn, "6C4801");
     assert.equal(sw.components.control.cmd_t, "cul/set/fs20/6C4801");

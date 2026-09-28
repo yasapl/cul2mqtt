@@ -10,6 +10,7 @@ import {fhtClockItems, fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor,
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
+import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
 import {discoveryModel, normalizedDiscoveryIds} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -66,12 +67,36 @@ try {
     throw new Error(`invalid --fs20-devices JSON: ${err.message}`);
 }
 let fs20DeviceByAddress = new Map();
-const fs20OnTimes = new Map();
+const fs20TimerValues = new Map();
 const fs20States = new Map();
 const fs20OffTimers = new Map();
 const fhtInitialized = new Set();
 const fhtInitialising = new Set();
 const fhtStateFile = config.stateDir ? path.join(config.stateDir, 'fht-initialized.json') : null;
+const fs20TimerFile = config.stateDir ? path.join(config.stateDir, 'fs20-timers.json') : null;
+
+const FS20_TIMER_COUNT = 5;
+
+function fs20TimerField(index) {
+    return index === 0 ? 'on_time' : `timer_${index + 1}`;
+}
+
+function fs20TimerIndex(field) {
+    if (field === 'on_time') {
+        return 0;
+    }
+    const match = /^timer_([2-5])$/.exec(field);
+    return match ? Number(match[1]) - 1 : undefined;
+}
+
+function normalizedTimerValues(values, initialOnTime = 0) {
+    return Array.from({length: FS20_TIMER_COUNT}, (_, index) => {
+        const candidate = Array.isArray(values) ? Number(values[index]) : NaN;
+        const fallback = index === 0 ? Number(initialOnTime) : 0;
+        const seconds = Number.isFinite(candidate) ? candidate : fallback;
+        return isValidFs20TimerDuration(seconds) ? seconds : 0;
+    });
+}
 
 /** items seen so far (published name → last value) for discovery */
 const seen = new Map();
@@ -180,9 +205,9 @@ function setFs20Devices(value) {
     }
     fs20Devices = definitions;
     fs20DeviceByAddress = new Map(definitions.map((device) => [device.address, device]));
-    for (const address of fs20OnTimes.keys()) {
+    for (const address of fs20TimerValues.keys()) {
         if (!fs20DeviceByAddress.has(address)) {
-            fs20OnTimes.delete(address);
+            fs20TimerValues.delete(address);
         }
     }
     for (const address of fs20States.keys()) {
@@ -191,12 +216,12 @@ function setFs20Devices(value) {
         }
     }
     for (const device of definitions) {
-        if (!fs20OnTimes.has(device.address)) {
-            fs20OnTimes.set(device.address, device.on_time);
+        if (!fs20TimerValues.has(device.address)) {
+            fs20TimerValues.set(device.address, normalizedTimerValues(null, device.on_time));
         }
-        // Publish the configured timer immediately so the MQTT number has a known value even
-        // while the CUL is connecting. It is re-published on every CUL reconnect as well.
-        pubStatus(`fs20/${device.address}/on_time`, fs20OnTimes.get(device.address), {retain: true});
+        fs20TimerValues.get(device.address).forEach((seconds, index) => {
+            pubStatus(`fs20/${device.address}/${fs20TimerField(index)}`, seconds, {retain: true});
+        });
         if (!fs20States.has(device.address)) {
             fs20States.set(device.address, false);
             pubStatus(`fs20/${device.address}/state`, false, {retain: true});
@@ -204,8 +229,10 @@ function setFs20Devices(value) {
     }
     adapter.markDiscoveryDirty();
     adapter.publishDiscovery();
+    saveFs20Timers();
 }
 
+loadFs20Timers();
 setFs20Devices(fs20Devices);
 
 /*
@@ -262,6 +289,34 @@ function saveFhtState() {
     }
 }
 
+function loadFs20Timers() {
+    if (!fs20TimerFile || !fs.existsSync(fs20TimerFile)) {
+        return;
+    }
+    try {
+        const saved = JSON.parse(fs.readFileSync(fs20TimerFile, 'utf8'));
+        for (const [address, values] of Object.entries(saved)) {
+            if (/^[0-9A-F]{6}$/.test(address) && Array.isArray(values)) {
+                fs20TimerValues.set(address, normalizedTimerValues(values));
+            }
+        }
+    } catch (err) {
+        log.warn('cannot read', fs20TimerFile, '-', err.message);
+    }
+}
+
+function saveFs20Timers() {
+    if (!fs20TimerFile) {
+        return;
+    }
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        fs.writeFileSync(fs20TimerFile, JSON.stringify(Object.fromEntries(fs20TimerValues)));
+    } catch (err) {
+        log.warn('cannot save', fs20TimerFile, '-', err.message);
+    }
+}
+
 function publishOnline(device, online) {
     const name = mapItem(`${device}/online`, map);
     const isNew = !seen.has(name);
@@ -293,20 +348,48 @@ async function handleSet(parts, value, topic) {
         log.warn('mqtt ignoring empty payload on', topic);
         return;
     }
-    if (String(parts[0]).toLowerCase() === 'fs20' && parts.length === 3 && parts[2] === 'on_time') {
+    if (String(parts[0]).toLowerCase() === 'fs20' && parts.length === 3 && fs20TimerIndex(parts[2]) !== undefined) {
         const address = String(parts[1]).trim().toUpperCase();
         if (!fs20DeviceByAddress.has(address)) {
             log.warn('mqtt set fs20 timer: unknown configured FS20 address', address);
             return;
         }
+        const index = fs20TimerIndex(parts[2]);
         const seconds = Number(value);
-        if (!Number.isInteger(seconds) || seconds < 0 || seconds > 15_360) {
-            log.warn('mqtt set fs20 timer:', value, '- expected a whole number from 0 to 15360 seconds');
+        if (!isValidFs20TimerDuration(seconds)) {
+            log.warn('mqtt set fs20 timer:', value, '- expected a 0.25-second increment from 0 to 15360 seconds');
             return;
         }
-        fs20OnTimes.set(address, seconds);
-        pubStatus(`fs20/${address}/on_time`, seconds, {retain: true});
+        const values = [...fs20TimerValues.get(address)];
+        values[index] = seconds;
+        fs20TimerValues.set(address, values);
+        saveFs20Timers();
+        pubStatus(`fs20/${address}/${fs20TimerField(index)}`, seconds, {retain: true});
         return;
+    }
+    if (
+        String(parts[0]).toLowerCase() === 'fs20' &&
+        parts.length === 4 &&
+        parts[2] === 'on-for-timer' &&
+        /^[1-5]$/.test(parts[3])
+    ) {
+        const address = String(parts[1]).trim().toUpperCase();
+        if (!fs20DeviceByAddress.has(address)) {
+            log.warn('mqtt set fs20 timed-on button: unknown configured FS20 address', address);
+            return;
+        }
+        const slot = Number(parts[3]);
+        const seconds = fs20TimerValues.get(address)?.[slot - 1] || 0;
+        if (!seconds) {
+            log.warn('mqtt set fs20 timed-on button:', address, 'timer', slot, 'is 0 seconds; set a duration first');
+            return;
+        }
+        if (!cul || !cul.connected) {
+            throw new Error('cul not connected');
+        }
+        const command = commandFor(['fs20', address], {cmd: 'on-for-timer', time: seconds});
+        log.debug('cul > FS20 timer button', address, 'timer', slot, seconds, 'seconds');
+        return sendFs20(command);
     }
     if (String(parts[0]).toLowerCase() === 'fht' && parts.length === 3 && parts[2] === 'sync-time') {
         await syncFhtTime(parts[1]);
@@ -440,12 +523,7 @@ async function initialiseFht(address) {
 async function sendFs20(command) {
     const address = `${command.housecode}${command.address}`.replace(/\s+/g, '').toUpperCase();
     const definition = fs20DeviceByAddress.get(address);
-    let {cmd, time} = command;
-    const onTime = fs20OnTimes.get(address) || 0;
-    if (cmd === 'on' && Number.isFinite(onTime) && onTime > 0) {
-        cmd = 'on-for-timer';
-        time = onTime;
-    }
+    const {cmd, time} = command;
     await cul.cmd('FS20', command.housecode, command.address, cmd, time);
     if (!definition) {
         return;
@@ -459,6 +537,10 @@ async function sendFs20(command) {
     fs20States.set(address, isOn);
     pubStatus(item, isOn, {retain: true});
     if (cmd === 'on-for-timer' && Number.isFinite(Number(time)) && Number(time) > 0) {
+        const effectiveSeconds = fs20TimerDuration(time);
+        if (effectiveSeconds !== Number(time)) {
+            log.info('FS20 timer', address, 'requested', time, 'seconds; radio timer is', effectiveSeconds, 'seconds');
+        }
         fs20OffTimers.set(
             address,
             setTimeout(
@@ -467,15 +549,17 @@ async function sendFs20(command) {
                     fs20States.set(address, false);
                     pubStatus(item, false, {retain: true});
                 },
-                Number(time) * 1000,
+                effectiveSeconds * 1000,
             ),
         );
     }
 }
 
 function publishFs20TimerStates() {
-    for (const [address, seconds] of fs20OnTimes) {
-        pubStatus(`fs20/${address}/on_time`, seconds, {retain: true});
+    for (const [address, values] of fs20TimerValues) {
+        values.forEach((seconds, index) => {
+            pubStatus(`fs20/${address}/${fs20TimerField(index)}`, seconds, {retain: true});
+        });
     }
 }
 
