@@ -27,14 +27,14 @@ external broker via `mqtt_url`, `mqtt_username`, and `mqtt_password`.
 Serial devices are mapped into the app automatically. Files such as map files and TLS CAs can be
 stored in the app configuration directory and referenced by their in-container path.
 
-FS20 actuators do not report their state, so define each one explicitly. The displayed state is
-the last command sent, not a confirmation from the actuator. Each device gets an **On timer**
-number entity. Set it to `1`–`15360` seconds to send `on-for-timer` whenever the switch is turned
-on, or set it to `0` for normal continuous on. `on_time` sets its initial value. The displayed
-switch state returns to off when the timer expires.
+FS20 actuators do not report their state, so define each one explicitly. Home Assistant shows an
+optimistic state based on the last command sent, not a confirmation from the actuator. Each device
+gets an **On timer** number entity. Set it to `1`–`15360` seconds to send `on-for-timer` whenever the
+switch is turned on, or set it to `0` for normal continuous on. `on_time` sets its initial value.
+The displayed switch state returns to off when the timer expires.
 
-Use **Open Web UI → FS20 devices** to add, edit, or remove FS20 switches and lights. Changes are
-stored by the app and take effect immediately; editing `fs20_devices` YAML is no longer needed.
+Configure FS20 switches and lights in the app's **Configuration** page under `fs20_devices`.
+Changes take effect after saving the configuration and restarting the app.
 
 ```yaml
 fs20_devices:
@@ -47,8 +47,7 @@ fs20_devices:
     on_time: 300
 ```
 
-This first app release installs the matching, pinned CUL2MQTT commit from this repository during
-the local build. Later app releases will pin their corresponding tested CUL2MQTT version too.
+The app build pins the matching CUL2MQTT commit from this repository so builds are repeatable.
 
 FHT80b devices announce a native climate entity after they report a temperature. FHT80TF contacts
 announce as binary sensors. The FHT climate entity currently supports target temperature and

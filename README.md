@@ -63,7 +63,8 @@ line project. It supports serial CUL/COC/SCC devices as well as network CUNO/CUL
    Home Assistant's MQTT service and its credentials automatically by default; set `mqtt_url` only
    for an external broker.
 
-   FS20 actuators must be defined explicitly because they cannot report their state:
+   FS20 actuators must be defined explicitly because they cannot report their state. Home Assistant
+   shows an optimistic state based on the last command sent, not a radio confirmation:
 
    ```yaml
    fs20_devices:

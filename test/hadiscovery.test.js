@@ -201,13 +201,32 @@ describe("discoveryModel", () => {
       light.components.control.stat_t,
       "cul/status/fs20/6C4800/state",
     );
-    assert.equal(light.components.control.opt, undefined);
+    assert.equal(light.components.control.opt, true);
+    assert.equal(
+      light.components.control.stat_tpl,
+      "{{ 'ON' if value_json.val else 'OFF' }}",
+    );
     assert.equal(light.components.on_time.p, "number");
     assert.equal(light.components.on_time.cmd_t, "cul/set/fs20/6C4800/on_time");
     assert.equal(light.components.on_time.min, 0);
     assert.equal(light.components.on_time.max, 15_360);
     assert.equal(sw.components.control.p, "switch");
     assert.equal(sw.components.control.cmd_t, "cul/set/fs20/6C4801");
+    assert.equal(sw.components.control.opt, true);
+    assert.equal(
+      sw.components.control.stat_tpl,
+      "{{ 'ON' if value_json.val else 'OFF' }}",
+    );
+    const [, plainSwitch] = discoveryModel({
+      name: "cul",
+      items: new Map(),
+      jsonPayloads: false,
+      fs20Devices: [{ name: "Pump", address: "6C4801", type: "switch" }],
+    });
+    assert.equal(
+      plainSwitch.components.control.stat_tpl,
+      "{{ 'ON' if value == 'true' else 'OFF' }}",
+    );
   });
 
   test("online items become per-device availability, not sensors", () => {
