@@ -48,12 +48,12 @@ if (config.mapFile) {
 
 let fs20Devices = [];
 try {
-    fs20Devices = JSON.parse(config.fs20Devices || '[]');
-    if (!Array.isArray(fs20Devices)) {
-        throw new Error('must be a JSON array');
-    }
+    const parsed = JSON.parse(config.fs20Devices || '[]');
+    // Home Assistant's app config may serialise an empty list as null and a single nested
+    // definition as an object. Accept both forms; the discovery model validates each entry.
+    fs20Devices = parsed === null ? [] : Array.isArray(parsed) ? parsed : [parsed];
 } catch (err) {
-    throw new Error(`invalid --fs20-devices: ${err.message}`);
+    throw new Error(`invalid --fs20-devices JSON: ${err.message}`);
 }
 const fs20DeviceByAddress = new Map(
     fs20Devices
