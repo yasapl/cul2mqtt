@@ -300,6 +300,7 @@ describe("discoveryModel", () => {
       "{{ 'ON' if value_json.val else 'OFF' }}",
     );
     assert.equal(light.components.on_time.p, "number");
+    assert.equal(light.components.on_time.opt, true);
     assert.equal(light.components.on_time.cmd_t, "cul/set/fs20/6C4800/on_time");
     assert.equal(light.components.on_time.min, 0);
     assert.equal(light.components.on_time.max, 15_360);

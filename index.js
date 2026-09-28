@@ -194,6 +194,9 @@ function setFs20Devices(value) {
         if (!fs20OnTimes.has(device.address)) {
             fs20OnTimes.set(device.address, device.on_time);
         }
+        // Publish the configured timer immediately so the MQTT number has a known value even
+        // while the CUL is connecting. It is re-published on every CUL reconnect as well.
+        pubStatus(`fs20/${device.address}/on_time`, fs20OnTimes.get(device.address), {retain: true});
         if (!fs20States.has(device.address)) {
             fs20States.set(device.address, false);
             pubStatus(`fs20/${device.address}/state`, false, {retain: true});
