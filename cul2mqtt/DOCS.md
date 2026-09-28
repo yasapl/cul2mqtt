@@ -36,8 +36,10 @@ The displayed switch state returns to off when the timer expires.
 Configure FS20 switches and lights in the app's **Configuration** page under `fs20_devices`.
 Changes take effect after saving the configuration and restarting the app.
 
-Home Assistant discovery IDs are normalized to lowercase. On upgrade, retained announcements from
-the previous case-sensitive IDs are cleared as each device is rediscovered.
+Home Assistant discovery IDs preserve their existing spelling so Home Assistant can match the
+device and entity registry entries created by earlier releases. FHT thermostats also keep their
+house-code identifier. On upgrade, retained lowercase discovery announcements from version 0.2.14
+are cleared as devices are rediscovered.
 
 ```yaml
 fs20_devices:

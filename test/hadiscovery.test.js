@@ -4,7 +4,7 @@ import { devicePayload } from "mqtt-interfaces-core";
 
 import {
   discoveryModel,
-  legacyDiscoveryIds,
+  normalizedDiscoveryIds,
   splitItem,
   uidFor,
 } from "../lib/hadiscovery.js";
@@ -98,6 +98,16 @@ describe("discoveryModel", () => {
     );
   });
 
+  test("unmapped HMS device names and IDs preserve the RF address spelling", () => {
+    const items = new Map([
+      ["hms/B24E/temperature", { val: 17.6, raw: "hms/B24E/temperature" }],
+    ]);
+    const [, device] = discoveryModel({ name: "MAX_CUL", items });
+    assert.equal(device.id, "cul2mqtt_MAX_CUL_hms_B24E");
+    assert.equal(device.device.name, "hms/B24E");
+    assert.equal(device.components.temperature.uniq_id, "cul2mqtt_MAX_CUL_hms_B24E_temperature");
+  });
+
   test("unknown protocols get the protocol as model, plain payloads no value template", () => {
     const items = new Map([
       ["foo/1/x", { val: 1, retain: true, raw: "foo/1/x" }],
@@ -177,31 +187,31 @@ describe("discoveryModel", () => {
     assert.equal(dev.components.sync_time.p, "button");
     assert.equal(dev.components.sync_time.cmd_t, "cul/set/fht/4d3f/sync-time");
   });
-  test("FHT device IDs use the normalized bridge and house code", () => {
+  test("FHT discovery preserves the existing registry IDs and house-code identifier", () => {
     const items = new Map([
       [
         "fht/423c/measured_temp",
         { val: 21, retain: true, raw: "fht/423c/measured_temp" },
       ],
     ]);
-    const [, fht] = discoveryModel({ name: "cul", items });
-    assert.equal(fht.id, "cul2mqtt_cul_fht_423c");
-    assert.equal(fht.device.ids, undefined);
+    const [, fht] = discoveryModel({ name: "MAX_CUL", items });
+    assert.equal(fht.id, "cul2mqtt_MAX_CUL_fht_423c");
+    assert.deepEqual(fht.device.ids, ["423c"]);
     assert.equal(
       fht.components.measured_temp.uniq_id,
-      "cul2mqtt_cul_fht_423c_measured_temp",
+      "cul2mqtt_MAX_CUL_fht_423c_measured_temp",
     );
     const { payload } = devicePayload({
       pkg: { name: "cul2mqtt", version: "1.2.1" },
-      name: "cul",
+      name: "MAX_CUL",
       id: fht.id,
       device: fht.device,
       components: fht.components,
     });
-    assert.deepEqual(payload.dev.ids, ["cul2mqtt_cul_fht_423c"]);
+    assert.deepEqual(payload.dev.ids, ["423c"]);
   });
 
-  test("mixed-case RF addresses merge into one lowercase Home Assistant device", () => {
+  test("mixed-case RF addresses merge while preserving the first discovery spelling", () => {
     const items = new Map([
       [
         "fht/423C/measured_temp",
@@ -216,9 +226,9 @@ describe("discoveryModel", () => {
     const devices = discoveryModel({ name: "CUL", items });
     assert.equal(devices.length, 2);
     const fht = devices[1];
-    assert.equal(fht.id, "cul2mqtt_cul_fht_423c");
-    assert.equal(fht.device.name, "fht/423c");
-    assert.equal(fht.device.ids, undefined);
+    assert.equal(fht.id, "cul2mqtt_CUL_fht_423C");
+    assert.equal(fht.device.name, "fht/423C");
+    assert.deepEqual(fht.device.ids, ["423C"]);
     assert.equal(
       fht.components.climate.curr_temp_t,
       "CUL/status/fht/423C/measured_temp",
@@ -233,8 +243,8 @@ describe("discoveryModel", () => {
     );
   });
 
-  test("legacy case-sensitive discovery IDs can be cleared", () => {
-    const ids = legacyDiscoveryIds({
+  test("normalized discovery IDs can be cleared after restoring registry-compatible IDs", () => {
+    const ids = normalizedDiscoveryIds({
       name: "MAX_CUL",
       items: new Map([
         [
@@ -249,10 +259,9 @@ describe("discoveryModel", () => {
       fs20Devices: [{ name: "pump", address: "6C4801" }],
     });
     assert.deepEqual(ids, [
-      "cul2mqtt_MAX_CUL",
-      "cul2mqtt_MAX_CUL_fht_423C",
-      "cul2mqtt_MAX_CUL_fht_423c",
-      "cul2mqtt_MAX_CUL_fs20_6C4801",
+      "cul2mqtt_max_cul",
+      "cul2mqtt_max_cul_fht_423c",
+      "cul2mqtt_max_cul_fs20_6c4801",
     ]);
   });
 
@@ -347,7 +356,7 @@ describe("discoveryModel", () => {
     });
     assert.equal(
       uidFor("Leistung Spülmaschine/current"),
-      "leistung_sp_lmaschine_current",
+      "Leistung_Sp_lmaschine_current",
     );
   });
 });

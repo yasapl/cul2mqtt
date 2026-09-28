@@ -10,7 +10,7 @@ import {fhtClockItems, fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor,
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
-import {discoveryModel, legacyDiscoveryIds} from './lib/hadiscovery.js';
+import {discoveryModel, normalizedDiscoveryIds} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
 import {discoveryHint} from './lib/discovery.js';
@@ -81,24 +81,24 @@ let lastError = null;
 let fhtCentralConfigured = false;
 const fhtMeasurementParts = new Map();
 const fhtClockParts = new Map();
-const clearedLegacyDiscoveryIds = new Set();
+const clearedNormalizedDiscoveryIds = new Set();
 
 const FHT_CLOCK_FIELDS = new Set(['hour', 'minute', 'day', 'month', 'year']);
 
-/** Remove retained announcements from the former case-sensitive discovery IDs. */
+/** Remove retained announcements from the brief lowercase-ID release. */
 function clearLegacyDiscoveryTopics(devices) {
     if (!config.haDiscovery) {
         return;
     }
     const activeIds = new Set(devices.map((device) => device.id));
-    const legacyIds = legacyDiscoveryIds({name: config.name, items: seen, fs20Devices});
-    for (const id of legacyIds) {
-        if (!id || activeIds.has(id) || clearedLegacyDiscoveryIds.has(id)) {
+    const normalizedIds = normalizedDiscoveryIds({name: config.name, items: seen, fs20Devices});
+    for (const id of normalizedIds) {
+        if (!id || activeIds.has(id) || clearedNormalizedDiscoveryIds.has(id)) {
             continue;
         }
         adapter.publish(`${config.haPrefix}/device/${id}/config`, '', {retain: true});
-        clearedLegacyDiscoveryIds.add(id);
-        log.debug('mqtt cleared legacy Home Assistant discovery', id);
+        clearedNormalizedDiscoveryIds.add(id);
+        log.debug('mqtt cleared normalized Home Assistant discovery', id);
     }
 }
 
