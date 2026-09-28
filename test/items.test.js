@@ -1,7 +1,7 @@
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {fhtMeasuredTemperature, itemsFor, mapItem, snakeCase} from '../lib/items.js';
+import {fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor, mapItem, snakeCase} from '../lib/items.js';
 
 describe('itemsFor', () => {
     test('FS20 command is a non-retained event, rssi retained', () => {
@@ -200,5 +200,30 @@ describe('snakeCase', () => {
         assert.equal(snakeCase('desired-temp'), 'desired_temp');
         assert.equal(snakeCase('modeStr'), 'mode_str');
         assert.equal(snakeCase('total'), 'total');
+    });
+});
+
+describe('fhtClockItemsFromValue', () => {
+    test('rebuilds clock and calendar values from old retained hex-byte states', () => {
+        const parts = new Map();
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'hour', 3, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 15, parts), [
+            {item: 'fht/423c/time', val: '03:15', retain: true},
+        ]);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'year', '1A', parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'month', 9, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'day', '1C', parts), [
+            {item: 'fht/423c/date', val: '2026-09-28', retain: true},
+        ]);
+    });
+
+    test('decodes digit-only byte values as hex and rejects invalid clocks', () => {
+        const parts = new Map();
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'hour', 16, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 30, parts), [
+            {item: 'fht/423c/time', val: '22:48', retain: true},
+        ]);
+        assert.equal(parts.get('423c').hour, 22);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 60, parts), []);
     });
 });

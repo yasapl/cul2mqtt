@@ -7,7 +7,7 @@ import Cul from 'cul';
 import {createAdapter, createLogger, runDiscovery, autoAddress} from 'mqtt-interfaces-core';
 import config from './config.js';
 import pkg from './package.json' with {type: 'json'};
-import {fhtClockItems, fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
+import {fhtClockItems, fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
@@ -91,6 +91,37 @@ let fhtCentralConfigured = false;
 const fhtMeasurementParts = new Map();
 const fhtClockParts = new Map();
 
+const FHT_CLOCK_FIELDS = new Set(['hour', 'minute', 'day', 'month', 'year']);
+
+/**
+ * Restore retained FHT states after MQTT reconnect/startup. This repopulates discovery from the
+ * broker's existing values, migrates the old raw clock bytes to combined items, and lets the next
+ * device discovery payload update friendly names and drop obsolete components.
+ */
+function restoreFhtStatus(parts, payload) {
+    const [address, field] = parts;
+    if (!/^[0-9A-F]{4}$/i.test(address || '') || !field) return;
+    const rawItem = `fht/${address}/${field}`;
+    const value = payload && typeof payload === 'object' && Object.hasOwn(payload, 'val') ? payload.val : payload;
+    if (value === undefined || value === null || value === '') return;
+
+    if (FHT_CLOCK_FIELDS.has(field)) {
+        for (const item of fhtClockItemsFromValue(address, field, value, fhtClockParts)) {
+            const [, , derivedField] = item.item.split('/');
+            publishFhtField(address, derivedField, item.val);
+        }
+        return;
+    }
+
+    const name = mapItem(rawItem, map);
+    if (!seen.has(name)) {
+        seen.set(name, {val: value, retain: true, raw: rawItem});
+        scheduleDiscovery();
+    }
+}
+
+
+
 const culLabel = config.host ? `${config.host}:${config.port}` : config.serialport;
 
 const adapter = createAdapter({
@@ -99,6 +130,9 @@ const adapter = createAdapter({
     deviceLabel: 'cul',
     info: {cul: culLabel, mode: config.culMode},
     discovery: () => discoveryModel({name: config.name, items: seen, jsonPayloads: config.jsonPayloads, fs20Devices}),
+    subscriptions: {
+        'status/fht/+/+': (parts, value) => restoreFhtStatus(parts, value),
+    },
     onSet: handleSet,
     onShutdown: () => {
         clearInterval(offlineTimer);
