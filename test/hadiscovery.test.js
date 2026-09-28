@@ -296,7 +296,7 @@ describe("discoveryModel", () => {
     );
     assert.equal(light.components.control.opt, false);
     assert.equal(
-      light.components.control.stat_tpl,
+      light.components.control.val_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
     );
     assert.equal(light.components.timer_remaining.p, "sensor");
@@ -308,11 +308,16 @@ describe("discoveryModel", () => {
     assert.equal(light.components.timer_remaining.dev_cla, "duration");
     assert.equal(light.components.timer_remaining.unit_of_meas, "s");
     assert.equal(light.components.timer_remaining.stat_cla, "measurement");
+    assert.equal(
+      light.components.timer_remaining.val_tpl,
+      "{{ value_json.val }}",
+    );
     for (let slot = 1; slot <= 5; slot += 1) {
       const field = slot === 1 ? "on_time" : `timer_${slot}`;
       const timer = light.components[`timer_${slot}_duration`];
       assert.equal(timer.p, "number");
-      assert.equal(timer.opt, true);
+      assert.equal(timer.opt, false);
+      assert.equal(timer.val_tpl, "{{ value_json.val }}");
       assert.equal(timer.cmd_t, `cul/set/fs20/6C4800/${field}`);
       assert.equal(timer.min, 0);
       assert.equal(timer.max, 15_360);
@@ -329,7 +334,7 @@ describe("discoveryModel", () => {
     assert.equal(sw.components.control.cmd_t, "cul/set/fs20/6C4801");
     assert.equal(sw.components.control.opt, false);
     assert.equal(
-      sw.components.control.stat_tpl,
+      sw.components.control.val_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
     );
     const [, plainSwitch] = discoveryModel({
@@ -339,7 +344,7 @@ describe("discoveryModel", () => {
       fs20Devices: [{ name: "Pump", address: "6C4801", type: "switch" }],
     });
     assert.equal(
-      plainSwitch.components.control.stat_tpl,
+      plainSwitch.components.control.val_tpl,
       "{{ 'ON' if value == 'true' else 'OFF' }}",
     );
   });

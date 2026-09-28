@@ -373,6 +373,7 @@ async function handleSet(parts, value, topic) {
         fs20TimerValues.set(address, values);
         saveFs20Timers();
         pubStatus(`fs20/${address}/${fs20TimerField(index)}`, seconds, {retain: true});
+        log.info('FS20 timer preset', address, 'slot', index + 1, 'set to', seconds, 'seconds');
         return;
     }
     if (
@@ -396,7 +397,7 @@ async function handleSet(parts, value, topic) {
             throw new Error('cul not connected');
         }
         const command = commandFor(['fs20', address], {cmd: 'on-for-timer', time: seconds});
-        log.debug('cul > FS20 timer button', address, 'timer', slot, seconds, 'seconds');
+        log.info('FS20 timer button', address, 'slot', slot, 'pressed for', seconds, 'seconds');
         return sendFs20(command);
     }
     if (String(parts[0]).toLowerCase() === 'fht' && parts.length === 3 && parts[2] === 'sync-time') {
@@ -415,7 +416,7 @@ async function handleSet(parts, value, topic) {
     }
     switch (command.type) {
         case 'fs20':
-            log.debug('cul > FS20', command.housecode, command.address, command.cmd, command.time);
+            log.info('cul > FS20', command.housecode, command.address, command.cmd, command.time);
             return sendFs20(command);
         case 'fht':
             if (!config.fhtCentral) {
