@@ -1,7 +1,13 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { devicePayload } from "mqtt-interfaces-core";
 
-import { discoveryModel, splitItem, uidFor } from "../lib/hadiscovery.js";
+import {
+  discoveryModel,
+  legacyDiscoveryIds,
+  splitItem,
+  uidFor,
+} from "../lib/hadiscovery.js";
 
 describe("discoveryModel", () => {
   test("bridge device plus one device per RF address with a sensor per scalar field", () => {
@@ -171,7 +177,7 @@ describe("discoveryModel", () => {
     assert.equal(dev.components.sync_time.p, "button");
     assert.equal(dev.components.sync_time.cmd_t, "cul/set/fht/4d3f/sync-time");
   });
-  test("FHT uses the house code as the HA device identifier for FHEM compatibility", () => {
+  test("FHT device IDs use the normalized bridge and house code", () => {
     const items = new Map([
       [
         "fht/423c/measured_temp",
@@ -179,7 +185,75 @@ describe("discoveryModel", () => {
       ],
     ]);
     const [, fht] = discoveryModel({ name: "cul", items });
-    assert.deepEqual(fht.device.ids, ["423c"]);
+    assert.equal(fht.id, "cul2mqtt_cul_fht_423c");
+    assert.equal(fht.device.ids, undefined);
+    assert.equal(
+      fht.components.measured_temp.uniq_id,
+      "cul2mqtt_cul_fht_423c_measured_temp",
+    );
+    const { payload } = devicePayload({
+      pkg: { name: "cul2mqtt", version: "1.2.1" },
+      name: "cul",
+      id: fht.id,
+      device: fht.device,
+      components: fht.components,
+    });
+    assert.deepEqual(payload.dev.ids, ["cul2mqtt_cul_fht_423c"]);
+  });
+
+  test("mixed-case RF addresses merge into one lowercase Home Assistant device", () => {
+    const items = new Map([
+      [
+        "fht/423C/measured_temp",
+        { val: 20.5, retain: true, raw: "fht/423C/measured_temp" },
+      ],
+      [
+        "fht/423c/desired_temp",
+        { val: 21, retain: true, raw: "fht/423c/desired_temp" },
+      ],
+      ["fht/423C/mode", { val: "AUTO", retain: true, raw: "fht/423C/mode" }],
+    ]);
+    const devices = discoveryModel({ name: "CUL", items });
+    assert.equal(devices.length, 2);
+    const fht = devices[1];
+    assert.equal(fht.id, "cul2mqtt_cul_fht_423c");
+    assert.equal(fht.device.name, "fht/423c");
+    assert.equal(fht.device.ids, undefined);
+    assert.equal(
+      fht.components.climate.curr_temp_t,
+      "CUL/status/fht/423C/measured_temp",
+    );
+    assert.equal(
+      fht.components.climate.temp_stat_t,
+      "CUL/status/fht/423c/desired_temp",
+    );
+    assert.equal(
+      fht.components.climate.mode_stat_t,
+      "CUL/status/fht/423C/mode",
+    );
+  });
+
+  test("legacy case-sensitive discovery IDs can be cleared", () => {
+    const ids = legacyDiscoveryIds({
+      name: "MAX_CUL",
+      items: new Map([
+        [
+          "fht/423C/measured_temp",
+          { val: 20, raw: "fht/423C/measured_temp" },
+        ],
+        [
+          "fht/423c/desired_temp",
+          { val: 21, raw: "fht/423c/desired_temp" },
+        ],
+      ]),
+      fs20Devices: [{ name: "pump", address: "6C4801" }],
+    });
+    assert.deepEqual(ids, [
+      "cul2mqtt_MAX_CUL",
+      "cul2mqtt_MAX_CUL_fht_423C",
+      "cul2mqtt_MAX_CUL_fht_423c",
+      "cul2mqtt_MAX_CUL_fs20_6C4801",
+    ]);
   });
 
   test("explicit FS20 actuators announce stateful switch and light entities", () => {
@@ -273,7 +347,7 @@ describe("discoveryModel", () => {
     });
     assert.equal(
       uidFor("Leistung Spülmaschine/current"),
-      "Leistung_Sp_lmaschine_current",
+      "leistung_sp_lmaschine_current",
     );
   });
 });
