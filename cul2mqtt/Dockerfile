@@ -1,9 +1,9 @@
 FROM ghcr.io/home-assistant/base:latest
 
-ARG CUL2MQTT_REF=dfb569087d38483e116986bfbc4030b5d06031f8
+ARG CUL2MQTT_REF=a88d57ddbd5bc91bcd664da8c2753653bf210726
 
 LABEL \
-    io.hass.version="0.2.7" \
+    io.hass.version="0.2.8" \
     io.hass.type="app" \
     io.hass.arch="aarch64|amd64|armv7|armhf"
 
