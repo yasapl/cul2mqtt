@@ -33,7 +33,8 @@ gets five timer duration number entities and five matching **Turn on for timer**
 duration to `0.25`–`15360` seconds and press its button to send `on-for-timer`. FS20 rounds a requested
 duration up to the next supported radio interval; the app log reports the effective interval when
 it differs. The main switch shows
-on for that duration, then returns to off. The regular switch always sends ordinary on/off commands,
+on for that duration, then returns to off. A **Timer remaining** sensor counts down in seconds while
+the timed command is active and returns to `0` when it ends. The regular switch always sends ordinary on/off commands,
 regardless of the saved timer values. A duration of `0` disables that timer button. Values persist
 across app restarts. The YAML `on_time` option sets the initial value for timer 1.
 

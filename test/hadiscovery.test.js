@@ -299,6 +299,15 @@ describe("discoveryModel", () => {
       light.components.control.stat_tpl,
       "{{ 'ON' if value_json.val else 'OFF' }}",
     );
+    assert.equal(light.components.timer_remaining.p, "sensor");
+    assert.equal(light.components.timer_remaining.name, "Timer remaining");
+    assert.equal(
+      light.components.timer_remaining.stat_t,
+      "cul/status/fs20/6C4800/timer_remaining",
+    );
+    assert.equal(light.components.timer_remaining.dev_cla, "duration");
+    assert.equal(light.components.timer_remaining.unit_of_meas, "s");
+    assert.equal(light.components.timer_remaining.stat_cla, "measurement");
     for (let slot = 1; slot <= 5; slot += 1) {
       const field = slot === 1 ? "on_time" : `timer_${slot}`;
       const timer = light.components[`timer_${slot}_duration`];

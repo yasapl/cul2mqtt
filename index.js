@@ -215,6 +215,13 @@ function setFs20Devices(value) {
             fs20States.delete(address);
         }
     }
+    for (const [address, timer] of fs20OffTimers) {
+        if (!fs20DeviceByAddress.has(address)) {
+            clearTimeout(timer.timeout);
+            clearInterval(timer.interval);
+            fs20OffTimers.delete(address);
+        }
+    }
     for (const device of definitions) {
         if (!fs20TimerValues.has(device.address)) {
             fs20TimerValues.set(device.address, normalizedTimerValues(null, device.on_time));
@@ -226,6 +233,7 @@ function setFs20Devices(value) {
             fs20States.set(device.address, false);
             pubStatus(`fs20/${device.address}/state`, false, {retain: true});
         }
+        pubStatus(`fs20/${device.address}/timer_remaining`, 0, {retain: true});
     }
     adapter.markDiscoveryDirty();
     adapter.publishDiscovery();
@@ -530,8 +538,11 @@ async function sendFs20(command) {
     }
     const item = `fs20/${address}/state`;
     if (fs20OffTimers.has(address)) {
-        clearTimeout(fs20OffTimers.get(address));
+        const activeTimer = fs20OffTimers.get(address);
+        clearTimeout(activeTimer.timeout);
+        clearInterval(activeTimer.interval);
         fs20OffTimers.delete(address);
+        pubStatus(`fs20/${address}/timer_remaining`, 0, {retain: true});
     }
     const isOn = optimisticFs20State(cmd, fs20States.get(address));
     fs20States.set(address, isOn);
@@ -541,17 +552,27 @@ async function sendFs20(command) {
         if (effectiveSeconds !== Number(time)) {
             log.info('FS20 timer', address, 'requested', time, 'seconds; radio timer is', effectiveSeconds, 'seconds');
         }
-        fs20OffTimers.set(
-            address,
-            setTimeout(
-                () => {
-                    fs20OffTimers.delete(address);
-                    fs20States.set(address, false);
-                    pubStatus(item, false, {retain: true});
-                },
-                effectiveSeconds * 1000,
-            ),
-        );
+        const endsAt = Date.now() + effectiveSeconds * 1000;
+        let lastRemaining = Math.ceil(effectiveSeconds);
+        pubStatus(`fs20/${address}/timer_remaining`, lastRemaining, {retain: true});
+        const interval = setInterval(() => {
+            const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+            if (remaining !== lastRemaining) {
+                lastRemaining = remaining;
+                pubStatus(`fs20/${address}/timer_remaining`, remaining, {retain: true});
+            }
+        }, 250);
+        const timeout = setTimeout(() => {
+            const activeTimer = fs20OffTimers.get(address);
+            if (activeTimer) {
+                clearInterval(activeTimer.interval);
+            }
+            fs20OffTimers.delete(address);
+            fs20States.set(address, false);
+            pubStatus(`fs20/${address}/timer_remaining`, 0, {retain: true});
+            pubStatus(item, false, {retain: true});
+        }, effectiveSeconds * 1000);
+        fs20OffTimers.set(address, {timeout, interval, endsAt});
     }
 }
 
@@ -560,6 +581,9 @@ function publishFs20TimerStates() {
         values.forEach((seconds, index) => {
             pubStatus(`fs20/${address}/${fs20TimerField(index)}`, seconds, {retain: true});
         });
+        const activeTimer = fs20OffTimers.get(address);
+        const remaining = activeTimer ? Math.max(0, Math.ceil((activeTimer.endsAt - Date.now()) / 1000)) : 0;
+        pubStatus(`fs20/${address}/timer_remaining`, remaining, {retain: true});
     }
 }
 
