@@ -195,7 +195,7 @@ describe("discoveryModel", () => {
     assert.equal(dev.components.sync_time.p, "button");
     assert.equal(dev.components.sync_time.cmd_t, "cul/set/fht/4d3f/sync-time");
   });
-  test("FHT discovery preserves the existing registry IDs and house-code identifier", () => {
+  test("FHT discovery uses an app-scoped identifier separate from a bare house code", () => {
     const items = new Map([
       [
         "fht/423c/measured_temp",
@@ -204,7 +204,7 @@ describe("discoveryModel", () => {
     ]);
     const [, fht] = discoveryModel({ name: "MAX_CUL", items });
     assert.equal(fht.id, "cul2mqtt_MAX_CUL_fht_423c");
-    assert.deepEqual(fht.device.ids, ["423c"]);
+    assert.deepEqual(fht.device.ids, ["cul2mqtt_MAX_CUL_fht_423c"]);
     assert.equal(fht.device.sn, "423c");
     assert.equal(
       fht.components.measured_temp.uniq_id,
@@ -217,7 +217,7 @@ describe("discoveryModel", () => {
       device: fht.device,
       components: fht.components,
     });
-    assert.deepEqual(payload.dev.ids, ["423c"]);
+    assert.deepEqual(payload.dev.ids, ["cul2mqtt_MAX_CUL_fht_423c"]);
   });
 
   test("mixed-case RF addresses merge while preserving the first discovery spelling", () => {
@@ -237,7 +237,7 @@ describe("discoveryModel", () => {
     const fht = devices[1];
     assert.equal(fht.id, "cul2mqtt_CUL_fht_423C");
     assert.equal(fht.device.name, "fht/423C");
-    assert.deepEqual(fht.device.ids, ["423C"]);
+    assert.deepEqual(fht.device.ids, ["cul2mqtt_CUL_fht_423C"]);
     assert.equal(
       fht.components.climate.curr_temp_t,
       "CUL/status/fht/423C/measured_temp",
