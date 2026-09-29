@@ -110,14 +110,15 @@ const clearedNormalizedDiscoveryIds = new Set();
 
 const FHT_CLOCK_FIELDS = new Set(['hour', 'minute', 'day', 'month', 'year']);
 
-/** Remove retained announcements from the brief lowercase-ID release. */
+/** Remove obsolete retained announcements from prior FHT discovery identities. */
 function clearLegacyDiscoveryTopics(devices) {
     if (!config.haDiscovery) {
         return;
     }
     const activeIds = new Set(devices.map((device) => device.id));
     const normalizedIds = normalizedDiscoveryIds({name: config.name, items: seen, fs20Devices});
-    for (const id of normalizedIds) {
+    const legacyIds = devices.flatMap((device) => device.legacyDiscoveryIds || []);
+    for (const id of [...normalizedIds, ...legacyIds]) {
         if (!id || activeIds.has(id) || clearedNormalizedDiscoveryIds.has(id)) {
             continue;
         }
