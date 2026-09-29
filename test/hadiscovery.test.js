@@ -203,12 +203,13 @@ describe("discoveryModel", () => {
       ],
     ]);
     const [, fht] = discoveryModel({ name: "MAX_CUL", items });
-    assert.equal(fht.id, "cul2mqtt_MAX_CUL_fht_423c");
+    assert.equal(fht.id, "cul2mqtt_MAX_CUL_fht_423c_v2");
+    assert.deepEqual(fht.legacyDiscoveryIds, ["cul2mqtt_MAX_CUL_fht_423c"]);
     assert.deepEqual(fht.device.ids, ["cul2mqtt_MAX_CUL_fht_423c"]);
     assert.equal(fht.device.sn, "423c");
     assert.equal(
       fht.components.measured_temp.uniq_id,
-      "cul2mqtt_MAX_CUL_fht_423c_measured_temp",
+      "cul2mqtt_MAX_CUL_fht_423c_v2_measured_temp",
     );
     const { payload } = devicePayload({
       pkg: { name: "cul2mqtt", version: "1.2.1" },
@@ -235,9 +236,10 @@ describe("discoveryModel", () => {
     const devices = discoveryModel({ name: "CUL", items });
     assert.equal(devices.length, 2);
     const fht = devices[1];
-    assert.equal(fht.id, "cul2mqtt_CUL_fht_423C");
+    assert.equal(fht.id, "cul2mqtt_CUL_fht_423C_v2");
     assert.equal(fht.device.name, "fht/423C");
     assert.deepEqual(fht.device.ids, ["cul2mqtt_CUL_fht_423C"]);
+    assert.deepEqual(fht.legacyDiscoveryIds, ["cul2mqtt_CUL_fht_423C"]);
     assert.equal(
       fht.components.climate.curr_temp_t,
       "CUL/status/fht/423C/measured_temp",
