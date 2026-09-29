@@ -1,69 +1,211 @@
-# CUL2MQTT
+# CUL2MQTT Home Assistant App
 
-Packages the complete cul2mqtt project for Home Assistant. It supports the same CUL, COC, SCC and
-CUNO connection modes as the command-line project, and publishes discovered devices through Home
-Assistant MQTT Discovery.
+Connect a CUL-compatible radio running culfw to MQTT and Home Assistant. The app supports serial CUL,
+COC, and SCC devices, network CUNO/CUL devices, MQTT discovery, and the same radio protocols as the
+original CUL2MQTT project.
+
+## Installation
+
+1. In Home Assistant, open **Settings → Apps → App Store**, open the menu, and add this repository:
+
+   ```text
+   https://github.com/yasapl/cul2mqtt
+   ```
+
+2. Install **CUL2MQTT** and choose a radio connection:
+
+   - **Serial:** set `serialport` to the CUL device path. Leave `host` empty. The default is
+     `/dev/ttyACM0`.
+   - **TCP:** set `host` to the CUNO/CUL network address. `port` defaults to `2323`. A non-empty
+     `host` selects TCP and the serial settings are ignored.
+
+3. Confirm Home Assistant's MQTT integration is connected to the broker the app will use. Start
+   the app. Supported devices are discovered as their radio messages arrive.
+
+The app uses the Home Assistant MQTT service and its credentials by default. For an external broker,
+set `mqtt_url` and, if needed, `mqtt_username` and `mqtt_password`. Home Assistant's MQTT integration
+must use that same broker for discovery to work.
 
 ## Configuration
 
-| Option           | Meaning                                                                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `serialport`     | CUL serial device. This is used when `host` is empty.                                                                         |
-| `host` / `port`  | Network CUNO/CUL hostname and TCP port. Setting `host` selects TCP instead of serial.                                         |
-| `cul_mode`       | `SlowRF`, `MORITZ`, or `AskSin`, matching the original project.                                                               |
-| `coc` / `scc`    | Enable these for the corresponding Busware Raspberry Pi devices.                                                              |
-| `fht_central`    | Four-digit hexadecimal FHT central ID. Required for temperature and mode commands.                                            |
-| `fs20_devices`   | Explicit FS20 actuators: `name`, six-digit hexadecimal `address`, optional `type`, and optional initial `on_time` in seconds. |
-| `instance_name`  | MQTT topic prefix; leave as `cul` unless more than one CUL is used.                                                           |
-| `mqtt_url`       | Optional external MQTT broker URL. Leave empty (the default) to use Home Assistant's MQTT service.                            |
-| `log_level`      | Set `debug` to show `cul <` decoded input and `cul >` commands in the app log.                                                |
-| `publish_raw`    | Also publish unprocessed CUL lines on `<instance_name>/raw`.                                                                  |
-| `publish_events` | Publish each decoded update on `<instance_name>/event/...`; enabled by default.                                               |
+Options are set in the app's **Configuration** page. Defaults are shown below.
 
-By default the app obtains its MQTT host, username and password automatically from Home Assistant's
-MQTT service. Nothing needs to be entered for the normal HA/Mosquitto setup. It can instead use any
-external broker via `mqtt_url`, `mqtt_username`, and `mqtt_password`.
+| Option                  | Default         | Description                                                                                                                                                                                         |
+| ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serialport`            | `/dev/ttyACM0`  | Serial device path; used when `host` is empty.                                                                                                                                                      |
+| `host`                  | empty           | CUNO/CUL hostname or IP. A value selects TCP instead of serial.                                                                                                                                     |
+| `port`                  | `2323`          | CUNO/CUL TCP port.                                                                                                                                                                                  |
+| `baudrate`              | `0`             | Serial baud rate override. `0` uses the CUL library default: 9600, or 38400 with `coc`/`scc`. Ignored for TCP.                                                                                      |
+| `cul_mode`              | `SlowRF`        | Radio mode: `SlowRF`, `MORITZ`, or `AskSin`. Choose the mode matching the protocols and firmware in use.                                                                                            |
+| `coc`                   | `false`         | Enable for a Busware COC connected to a Raspberry Pi.                                                                                                                                               |
+| `scc`                   | `false`         | Enable for a Busware SCC connected to a Raspberry Pi.                                                                                                                                               |
+| `fht_central`           | empty           | Four-digit hexadecimal FHT central ID. The app sets this as the CUL's own FHT ID on connection. Required for FHT commands, time sync, first-time climate initialization, and FHT8V raw commands.    |
+| `fs20_devices`          | `[]`            | FS20 devices to expose in Home Assistant. Define each with a `name`, six-digit hexadecimal `address`, optional `type` (`switch` or `light`), and optional `on_time` initial timer value in seconds. |
+| `instance_name`         | `cul`           | Prefix for MQTT topics and the MQTT client ID. Change it when another CUL2MQTT instance uses the same broker.                                                                                       |
+| `mqtt_url`              | empty           | Leave empty to use the Home Assistant MQTT service. For an external broker, set a URL such as `mqtt://broker:1883` or `mqtts://broker:8883`.                                                        |
+| `mqtt_username`         | empty           | Username for an external MQTT broker.                                                                                                                                                               |
+| `mqtt_password`         | empty           | Password for an external MQTT broker.                                                                                                                                                               |
+| `mqtt_client_id_prefix` | empty           | Optional prefix for the MQTT client ID. A random suffix is added automatically.                                                                                                                     |
+| `mqtt_tls_ca`           | empty           | Path to a CA certificate for an `mqtts://` broker. Store the file in the app configuration directory and use its `/config/...` path.                                                                |
+| `log_level`             | `info`          | Log level: `error`, `warn`, `info`, or `debug`. Debug logs include received `cul <` and outgoing `cul >` lines. Debug is not required to send commands.                                             |
+| `publish_raw`           | `false`         | Publish raw lines received from the CUL on `<instance_name>/raw`. This is for monitoring incoming radio traffic.                                                                                    |
+| `raw_set`               | `false`         | Accept raw CUL firmware commands on `<instance_name>/set/raw`. This enables sending commands; it is separate from `publish_raw`. See [Raw CUL commands](#raw-cul-commands).                         |
+| `publish_events`        | `true`          | Publish each decoded field update as a non-retained message on `<instance_name>/event/...`.                                                                                                         |
+| `offline_detection`     | `true`          | Mark devices unavailable when no message arrives within their timeout.                                                                                                                              |
+| `learn_intervals`       | `true`          | Learn longer per-device offline timeouts from observed message gaps. Applies only when `offline_detection` is enabled.                                                                              |
+| `json_payloads`         | `true`          | Publish retained status as mqtt-smarthome JSON (`val`, `ts`, `lc`). Disable for plain status values.                                                                                                |
+| `ha_discovery`          | `true`          | Publish Home Assistant MQTT Discovery. Disabling it also clears the app's retained discovery announcements.                                                                                         |
+| `ha_prefix`             | `homeassistant` | Home Assistant MQTT Discovery prefix; must match the prefix configured in Home Assistant.                                                                                                           |
+| `maintenance`           | `true`          | Enable MQTT commands to change log level or request a graceful restart. See [Maintenance topics](#maintenance-and-diagnostics).                                                                     |
+| `stats_interval`        | `60`            | Publish retained process statistics every this many seconds to `<instance_name>/maintenance/stats`. Set to `0` to disable. This is independent of `maintenance`.                                    |
+| `map_file`              | empty           | Optional JSON file mapping protocol/address/field names to friendly names. Put it in the app configuration directory and reference it as `/config/filename.json`.                                   |
 
-Serial devices are mapped into the app automatically. Files such as map files and TLS CAs can be
-stored in the app configuration directory and referenced by their in-container path.
+### Files in the app configuration directory
 
-FS20 actuators do not report their state, so define each one explicitly. Home Assistant shows an
-optimistic state based on the last command sent, not a confirmation from the actuator. Each device
-gets five timer duration number entities and five matching **Turn on for timer** buttons. Set a
-duration to `0.25`–`15360` seconds and press its button to send `on-for-timer`. FS20 rounds a requested
-duration up to the next supported radio interval; the app log reports the effective interval when
-it differs. The main switch shows
-on for that duration, then returns to off. A **Timer remaining** sensor counts down in seconds while
-the timed command is active and returns to `0` when it ends. The regular switch always sends ordinary on/off commands,
-regardless of the saved timer values. A duration of `0` disables that timer button. Values persist
-across app restarts. The YAML `on_time` option sets the initial value for timer 1.
+The app configuration directory is mounted in the container at `/config`. For example, save a map
+file there and set `map_file` to `/config/map.json`. A TLS CA certificate can be stored in the same
+directory and referenced by `mqtt_tls_ca`.
 
-Configure FS20 switches and lights in the app's **Configuration** page under `fs20_devices`.
-Changes take effect after saving the configuration and restarting the app.
+### FS20 devices
 
-Home Assistant discovery IDs preserve their existing spelling so Home Assistant can match the
-device and entity registry entries created by earlier releases. FHT thermostats also keep their
-house-code identifier as the device serial number. Other RF devices expose their radio address in
-the same device-info field. FHT current temperature sensors and climate entities explicitly use °C.
-On upgrade, retained lowercase discovery announcements from version 0.2.14 are cleared as devices
-are rediscovered.
+FS20 actuators are one-way devices and do not report their state. Define each actuator under
+`fs20_devices`; Home Assistant shows an optimistic state based on commands sent by the app. The
+state starts off after an app restart because the actuator cannot confirm its actual state.
+
+Each configured device gets a main switch, five timer-duration number entities, five matching
+**Turn on for timer** buttons, and a **Timer remaining** sensor. Enter a duration from `0.25` to
+`15360` seconds, then press its matching button. The timed command turns the main switch on and the
+app returns it to off when the timer expires. A duration of `0` disables that timer button. FS20
+rounds durations up to a supported radio interval; the app logs the effective duration when it
+differs. Timer values persist across app restarts. The `on_time` option sets the initial value for
+timer 1; omit it to start at `0`.
+
+Example:
 
 ```yaml
 fs20_devices:
   - name: Hall light
     address: 6C4800
     type: light
-  - name: Pump
+  - name: Hot water switch
     address: 6C4801
     type: switch
-    on_time: 300
+    on_time: 1800
 ```
 
-The app build pins the matching CUL2MQTT commit from this repository so builds are repeatable.
+Configure FS20 devices in the app's **Configuration** page. Changes take effect after saving and
+restarting the app.
 
-FHT80b devices announce a native climate entity after they report a temperature. FHT80TF contacts
-announce as binary sensors. The FHT climate entity currently supports target temperature and
-auto/manual mode; schedules and holiday mode are intentionally not exposed yet. If a newly
-discovered FHT has a temperature but no mode or target temperature, it is set once to manual mode
-and 10 °C. Use the device's **Sync time** button to send date and time manually; no time sync is
-performed automatically.
+### FHT thermostats and FHT8V valves
+
+FHT80b thermostats publish a native climate entity after reporting a temperature. The climate
+supports target temperature and `auto`/`heat` modes (`auto` maps to FHT automatic mode; `heat` maps
+to manual mode). Current temperatures use °C. FHT80TF window contacts publish as binary sensors.
+Schedules and holiday mode are not currently exposed.
+
+If a newly discovered thermostat reports a temperature but is missing either its mode or target
+temperature, the app initializes it once to manual mode and 16 °C. Each thermostat also has a
+**Sync time** button; time is sent only when that button is pressed. Set `fht_central` for these
+commands to work.
+
+FHT8V valves do not currently have dedicated Home Assistant entities or decoded valve state.
+`raw_set` can send CUL firmware commands, but FHT8V operation through this app has not yet been
+verified end to end. The FHEM FHT8V module constructs valve-position commands in the form
+`T<housecode>0026<encoded-position>`; for address `4341` and 20%, that is `T4341002633`. culfw
+queues FHT8V commands for the valve's timeslot, so Home Assistant does not calculate the slot. The
+CUL's configured FHT ID must be compatible with the valve address.
+
+## MQTT topics and commands
+
+Replace `cul` in the topic examples with the configured `instance_name` if it differs.
+
+- `<instance_name>/connected`: retained connection state (`0` disconnected, `1` MQTT connected but
+  CUL disconnected, `2` both connected).
+- `<instance_name>/status/<protocol>/<address>/<field>`: retained decoded status values. By default
+  payloads are JSON objects containing `val`, `ts`, and `lc`; set `json_payloads: false` for plain
+  values.
+- `<instance_name>/event/<protocol>/<address>/<field>`: decoded updates, non-retained, when
+  `publish_events` is enabled. These are useful as a processed event monitor.
+- `<instance_name>/raw`: received CUL firmware lines, non-retained, when `publish_raw` is enabled.
+- `<instance_name>/info`: retained information about the running instance.
+
+Supported protocols and parsed fields depend on the CUL parser. Device-based Home Assistant
+discovery is enabled by default; devices appear after the CUL receives a message from them.
+
+### Sending FS20 commands
+
+`<instance_name>/set/fs20/<address>` accepts a plain command or JSON. The address is six hexadecimal
+digits (house code plus unit address), for example `6C4800`.
+
+```text
+Topic:   cul/set/fs20/6C4800
+Payload: on
+```
+
+For a timer, publish JSON with `cmd` and `time` in seconds:
+
+```json
+{"cmd": "on-for-timer", "time": 300}
+```
+
+### Sending FHT commands
+
+`<instance_name>/set/fht/<device>/<command>` supports `desired-temp` and `mode`. The FHT device
+address is four hexadecimal digits. Set `fht_central` first.
+
+```text
+Topic:   cul/set/fht/1234/desired-temp
+Payload: 21.5
+```
+
+### Raw CUL commands
+
+Set `raw_set: true` in the app's configuration to enable
+`<instance_name>/set/raw`. Publish a plain CUL firmware command as the payload. `log_level: debug`
+is not required; it only adds the outgoing command to the app log. `publish_raw` is also not
+required; it controls incoming raw messages in the opposite direction.
+
+For example, with the default `instance_name: cul`:
+
+```text
+Topic:   cul/set/raw
+Payload: T4341002633
+```
+
+Raw commands can transmit arbitrary radio commands. Enable this only when MQTT access is restricted
+to trusted clients.
+
+## Maintenance and diagnostics
+
+These diagnostic topics are available:
+
+| Topic                                      | Payload / effect                                                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<instance_name>/maintenance/set/loglevel` | With `maintenance: true`, `error`, `warn`, `info`, or `debug` changes logging at runtime.                                                                                                                  |
+| `<instance_name>/maintenance/set/restart`  | With `maintenance: true`, requests a graceful app shutdown. Restart behavior is managed by Home Assistant.                                                                                                 |
+| `<instance_name>/maintenance/stats`        | Retained process statistics, published at `stats_interval`: memory, CPU, event loop lag, uptime, and timestamp. Set `stats_interval: 0` to stop these updates. This topic is independent of `maintenance`. |
+
+The log level can also be changed in the app Configuration page; that change requires restarting
+the app. Use `debug` to inspect raw incoming `cul <` and outgoing `cul >` lines. Commands do not
+require debug logging to be enabled.
+
+Protect broker access with authentication and MQTT ACLs, especially if `raw_set` or maintenance
+topics are enabled. Set `maintenance: false` to disable the log-level and restart commands. This
+does not disable the statistics topic; use `stats_interval: 0` for that.
+
+## Home Assistant discovery details
+
+The app uses Home Assistant MQTT device-based discovery. `ha_discovery: false` disables discovery
+and clears retained discovery announcements. Use `ha_prefix` only if Home Assistant is configured
+with a different discovery prefix.
+
+Home Assistant matches devices by their identifiers; a serial number is separate metadata.
+CUL2MQTT now scopes FHT identifiers to its instance, so its device stays separate from a manually
+configured MQTT device whose identifier is just the house code. The FHT house code remains in the
+serial-number field. Other RF devices use their radio address in device info. Entity unique IDs and
+discovery topic IDs preserve their established spelling. Current-temperature entities use °C.
+Older retained lowercase discovery announcements from version 0.2.14 are cleared during
+rediscovery.
+
+The app records learned device intervals and FS20 timer values in its persistent data directory so
+they survive app restarts.
