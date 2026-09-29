@@ -30,69 +30,6 @@ raw traffic (`cul <` / `cul >`).
 `cul2mqtt --help` lists all options; every option can also be set via an environment variable
 (`CUL2MQTT_SERIALPORT`, `CUL2MQTT_MQTT_URL`, `CUL2MQTT_NAME`, ...).
 
-### Home Assistant app
-
-This repository can also be installed as a custom Home Assistant app. It runs under Home Assistant
-and packages the same CUL2MQTT functionality as the command-line project. It supports serial
-CUL/COC/SCC devices as well as network CUNO/CUL devices. The app's **Info** page includes a short
-description; its **Documentation** page contains the complete configuration and feature guide.
-
-1. In Home Assistant, open **Settings → Apps → App Store**, open the menu, then add this custom
-   repository URL:
-
-   ```
-   https://github.com/yasapl/cul2mqtt
-   ```
-
-2. Install **CUL2MQTT**, then select one connection type:
-
-   ```yaml
-   # Serial CUL / COC / SCC (default)
-   serialport: /dev/ttyACM0
-   host: ''
-   ```
-
-   ```yaml
-   # Network CUNO / CUL
-   host: 192.168.1.50
-   port: 2323
-   ```
-
-   Set `cul_mode` to `SlowRF`, `MORITZ`, or `AskSin` as appropriate. `fht_central` is the
-   four-digit hexadecimal central ID used for FHT commands, time sync, and first-time climate
-   initialization. Leave
-   `instance_name` as `cul` unless another CUL already uses that MQTT topic prefix. The app uses
-   Home Assistant's MQTT service and its credentials automatically by default; set `mqtt_url` only
-   for an external broker.
-
-   FS20 actuators must be defined explicitly because they cannot report their state. Home Assistant
-   shows an optimistic state based on the last command sent, not a radio confirmation:
-
-   ```yaml
-   fs20_devices:
-     - name: Hall light
-       address: 6C4800
-       type: light
-   ```
-
-   Every defined FS20 device gets five timer-duration number entities and five matching
-   **Turn on for timer** buttons. Set a duration in seconds and press its button to send native
-   `on-for-timer`; set a duration to `0` to disable that button. `on_time` below sets the initial
-   value for timer 1:
-
-   ```yaml
-   fs20_devices:
-     - name: AS1
-       address: 6C4801
-       on_time: 300
-   ```
-
-3. Start the app. It will discover supported radio devices and publish them to Home Assistant
-   through MQTT Discovery. Set `raw_set: true` to send manual raw CUL firmware commands. Debug
-   logging is not required to send them; `log_level: debug` only adds `cul <`/`cul >` traffic to the
-   app log. See the [Home Assistant app documentation](cul2mqtt/DOCS.md) for all configuration
-   options, MQTT topics, maintenance functions, and protocol details.
-
 | option                               | default            | description                                                                      |
 | ------------------------------------ | ------------------ | -------------------------------------------------------------------------------- |
 | `-s, --serialport`                   | `/dev/ttyACM0`     | serial port of the CUL / COC / SCC, or `auto` (see above)                        |
@@ -102,12 +39,11 @@ description; its **Documentation** page contains the complete configuration and 
 | `--coc`, `--scc`                     | off                | device is a Busware COC / SCC on a Raspberry Pi                                  |
 | `--host`, `--port`                   | , `2323`           | CUNO / CUNO2 via telnet instead of a serial port                                 |
 | `-m, --map-file`                     |                    | JSON file with friendly item names (see below)                                   |
-| `--fht-central`                      |                    | FHT central code (4 hex digits), required for FHT commands and time sync         |
+| `--fht-central`                      |                    | FHT central code (4 hex digits), required for `cul/set/fht`                      |
 | `--offline-detection`                | on                 | mark silent devices offline on `cul/status/<protocol>/<address>/online`          |
 | `--learn-intervals`                  | on                 | widen offline timeouts from observed per-device message gaps                     |
 | `--state-dir`                        | `$STATE_DIRECTORY` | directory for persisted state (learned intervals); set by systemd                |
 | `--publish-raw`                      | off                | additionally publish every raw culfw line on `cul/raw`                           |
-| `--publish-events`                   | on                 | publish every parsed update on `cul/event/...` (not retained)                    |
 | `--raw-set`                          | off                | accept raw culfw commands on `cul/set/raw` (see below)                           |
 | `-u, --mqtt-url`                     | `mqtt://localhost` | broker URL, see [MQTT.js](https://github.com/mqttjs/MQTT.js#connect-using-a-url) |
 | `--mqtt-username`, `--mqtt-password` |                    | broker credentials                                                               |
@@ -292,8 +228,8 @@ mosquitto_pub -t cul/set/fs20/6C4802 -m '{"cmd": "on-for-timer", "time": 300}'
 
 ### `cul/set/fht/<device>/<command>`
 
-Sends an FHT command (`desired-temp` or `mode`); needs `--fht-central <code>`. The device is its
-four-digit hexadecimal RF address (as shown in the status topic). The payload is the value,
+Sends an FHT command (`desired-temp`, `mode`, `day-temp`, `night-temp`, ... as in
+[culfw](http://culfw.de/commandref.html)); needs `--fht-central <code>`. The payload is the value,
 alternatively JSON `{"cmd": "desired-temp", "value": 21.5}` on `cul/set/fht/<device>`.
 
 ```
@@ -306,14 +242,6 @@ With `--raw-set`, any culfw command line is written to the CUL (`F6C480011`, `X2
 an unrestricted RF transmitter — protect your broker with authentication/ACLs before enabling it.
 `--publish-raw` does the opposite: every line received from the CUL is published on `cul/raw`
 (not retained), useful for unsupported protocols.
-
-### Processed event monitor
-
-`--publish-events` is on by default. Every parsed field update is also published as a non-retained
-JSON message on `cul/event/<protocol>/<address>/<field>` (or the mapped item name), for example
-`cul/event/fht/4d3f/measured_temp`. It contains `protocol`, `address`, `field`, `value`, optional
-`rssi`, and `received_at`. This is the MQTT equivalent of FHEM's Event Monitor; unlike `cul/raw`,
-it shows decoded updates rather than radio frames.
 
 ### `cul/maintenance/set/<command>`
 
@@ -336,14 +264,6 @@ manufacturer/model derived from the protocol (`ELV S300TH`, `ELV EM1000`, `ELV F
 _Connected_ diagnostic. Devices are announced as they show up on air (each address has to send
 once); availability follows `cul/connected` — and, with offline detection (the default), the
 per-device `online` item: a device that stops sending becomes _unavailable_ in HA on its own.
-
-An FHT80b that reports `measured_temp` also announces a native MQTT climate entity. Its target
-temperature uses `cul/set/fht/<hex-address>/desired-temp`; HA's `auto` maps to FHT `AUTO`, while
-HA's `heat` maps to FHT `MANU`. The existing FHT80TF contact discovery remains a binary sensor.
-When a newly discovered FHT has temperature but is missing either its mode or target temperature,
-CUL2MQTT sets it once to manual mode and 16 °C, then persists that initialisation marker. Each FHT
-device also has a **Sync time** button. It sends date and time only when explicitly pressed; it is
-never run automatically.
 
 FS20 is receive-only for the CUL, so actuators cannot be discovered and no switches are created
 automatically; an FS20 remote appears as a device with one sensor holding the last command.
