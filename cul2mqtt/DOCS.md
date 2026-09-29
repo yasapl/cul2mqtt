@@ -200,10 +200,12 @@ and clears retained discovery announcements. Use `ha_prefix` only if Home Assist
 with a different discovery prefix.
 
 Home Assistant matches devices by their identifiers; a serial number is separate metadata.
-CUL2MQTT now scopes FHT identifiers to its instance, so its device stays separate from a manually
+CUL2MQTT scopes FHT identifiers to its instance, so its device stays separate from a manually
 configured MQTT device whose identifier is just the house code. The FHT house code remains in the
-serial-number field. Other RF devices use their radio address in device info. Entity unique IDs and
-discovery topic IDs preserve their established spelling. Current-temperature entities use °C.
+serial-number field. On upgrade, the app clears the previous FHT discovery topic and republishes
+the entities under a new discovery ID, so Home Assistant recreates them on the separate device
+instead of retaining their old registry association with the manual MQTT device. Other RF devices
+use their radio address in device info. Current-temperature entities use °C.
 Older retained lowercase discovery announcements from version 0.2.14 are cleared during
 rediscovery.
 
