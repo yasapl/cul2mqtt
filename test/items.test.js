@@ -1,7 +1,7 @@
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {itemsFor, mapItem, snakeCase} from '../lib/items.js';
+import {fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor, mapItem, snakeCase} from '../lib/items.js';
 
 describe('itemsFor', () => {
     test('FS20 command is a non-retained event, rssi retained', () => {
@@ -99,6 +99,16 @@ describe('itemsFor', () => {
         assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmdRaw: 'ff', cmd: 'UNKNOWN'}}), []);
     });
 
+    test('FHT warnings add diagnostic booleans', () => {
+        assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmd: 'warnings', value: 'BATT LOW'}}), [
+            {item: 'fht/4d3f/warnings', val: 'BATT LOW', retain: true},
+            {item: 'fht/4d3f/battery_low', val: true, retain: true},
+            {item: 'fht/4d3f/low_temperature', val: false, retain: true},
+            {item: 'fht/4d3f/window_open', val: false, retain: true},
+            {item: 'fht/4d3f/window_sensor_error', val: false, retain: true},
+        ]);
+    });
+
     test('messages without address (culfw replies) and parse errors yield nothing', () => {
         assert.deepEqual(itemsFor({protocol: 'culfw', data: {version: '1.66', hardware: 'CSM868'}}), []);
         assert.deepEqual(itemsFor({protocol: 'TCM97001', address: '159', data: {error: 'no matching decoder'}}), []);
@@ -151,6 +161,26 @@ describe('itemsFor', () => {
     });
 });
 
+describe('fhtMeasuredTemperature', () => {
+    test('combines the FHT low and high bytes when the high byte arrives', () => {
+        const parts = new Map();
+        assert.equal(
+            fhtMeasuredTemperature(
+                {protocol: 'FHT', address: '4240', data: {cmd: 'measured-low', valueRaw: 'df'}},
+                parts,
+            ),
+            undefined,
+        );
+        assert.deepEqual(
+            fhtMeasuredTemperature(
+                {protocol: 'FHT', address: '4240', data: {cmd: 'measured-high', valueRaw: '00'}},
+                parts,
+            ),
+            {item: 'fht/4240/measured_temp', val: 22.3, retain: true},
+        );
+    });
+});
+
 describe('mapItem', () => {
     const map = {'EM/0205': 'dishwasher', 'WS/1/temperature': 'living_room_temperature', 'fs20/6C4800': 'doorbell'};
     test('prefix and exact matches, case-insensitive, longest wins', () => {
@@ -170,5 +200,30 @@ describe('snakeCase', () => {
         assert.equal(snakeCase('desired-temp'), 'desired_temp');
         assert.equal(snakeCase('modeStr'), 'mode_str');
         assert.equal(snakeCase('total'), 'total');
+    });
+});
+
+describe('fhtClockItemsFromValue', () => {
+    test('rebuilds clock and calendar values from old retained hex-byte states', () => {
+        const parts = new Map();
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'hour', 3, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', '0F', parts), [
+            {item: 'fht/423c/time', val: '03:15', retain: true},
+        ]);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'year', '1A', parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'month', 9, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'day', '1C', parts), [
+            {item: 'fht/423c/date', val: '2026-09-28', retain: true},
+        ]);
+    });
+
+    test('decodes digit-only byte values as hex and rejects invalid clocks', () => {
+        const parts = new Map();
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'hour', 16, parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 30, parts), [
+            {item: 'fht/423c/time', val: '22:48', retain: true},
+        ]);
+        assert.equal(parts.get('423c').hour, 22);
+        assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 60, parts), []);
     });
 });

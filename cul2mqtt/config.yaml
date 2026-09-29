@@ -1,0 +1,77 @@
+name: CUL2MQTT
+version: '0.2.23'
+slug: cul2mqtt
+description: Bridge culfw CUL, COC, SCC, and CUNO radios to MQTT and Home Assistant discovery
+url: https://github.com/yasapl/cul2mqtt
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - armhf
+init: false
+uart: true
+udev: true
+services:
+  - mqtt:want
+map:
+  - addon_config:rw
+options:
+  serialport: /dev/ttyACM0
+  host: ''
+  port: 2323
+  baudrate: 0
+  cul_mode: SlowRF
+  coc: false
+  scc: false
+  fht_central: ''
+  fs20_devices: []
+  instance_name: cul
+  mqtt_url: ''
+  mqtt_username: ''
+  mqtt_password: ''
+  mqtt_client_id_prefix: ''
+  mqtt_tls_ca: ''
+  log_level: info
+  publish_raw: false
+  publish_events: true
+  offline_detection: true
+  learn_intervals: true
+  json_payloads: true
+  ha_discovery: true
+  ha_prefix: homeassistant
+  maintenance: true
+  stats_interval: 60
+  raw_set: false
+  map_file: ''
+schema:
+  serialport: str
+  host: str
+  port: port
+  baudrate: int
+  cul_mode: list(SlowRF|MORITZ|AskSin)
+  coc: bool
+  scc: bool
+  fht_central: str
+  fs20_devices:
+    - name: str
+      address: match(^[0-9A-Fa-f]{6}$)
+      type: list(switch|light)?
+      on_time: int?
+  instance_name: str
+  mqtt_url: str?
+  mqtt_username: str?
+  mqtt_password: password?
+  mqtt_client_id_prefix: str?
+  mqtt_tls_ca: str?
+  log_level: list(error|warn|info|debug)
+  publish_raw: bool
+  publish_events: bool
+  offline_detection: bool
+  learn_intervals: bool
+  json_payloads: bool
+  ha_discovery: bool
+  ha_prefix: str
+  maintenance: bool
+  stats_interval: int
+  raw_set: bool
+  map_file: str
