@@ -108,10 +108,11 @@ description; its **Documentation** page contains the complete configuration and 
    # fht8w_address: 4341
    ```
 
-   Home Assistant then gets a position number and **Send valve report** button. Changing the number
-   only stages the position; pressing the button sends the report. Add that report address to the
-   physical FHT8W locally. Do not configure the same address as both a virtual report source and a
-   physical FHT8V valve.
+   Home Assistant gets a **Heat request valve position** number (default 20%), a **Request heat
+   (130 s)** button, and a sensor for the last transmitted position. The app reports 0% while idle,
+   repeats the current value every 120 seconds, and returns to 0% after the renewable 130-second
+   request expires. Add the report address to the physical FHT8W locally. Do not configure the same
+   address as both a virtual report source and a physical FHT8V valve.
 
 3. Start the app. It will discover supported radio devices and publish them to Home Assistant
    through MQTT Discovery. Set `raw_set: true` to send manual raw CUL firmware commands. Sent
