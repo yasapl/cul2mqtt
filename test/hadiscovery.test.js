@@ -284,16 +284,19 @@ describe('discoveryModel', () => {
         assert.equal(valve.components.pair.pl_prs, 'PRESS');
     });
 
-    test('virtual FHT8W announces staged position and report button', () => {
+    test('virtual FHT8W announces request position, transmitted position, and timed request button', () => {
         const [, relay] = discoveryModel({name: 'cul', items: new Map(), fht8wAddress: '4341'});
         assert.equal(relay.id, 'cul2mqtt_cul_fht8w_4341');
         assert.equal(relay.device.name, 'Virtual FHT8W');
         assert.equal(relay.device.mdl, 'FHT8W (emulated)');
         assert.equal(relay.components.valve_position.p, 'number');
         assert.equal(relay.components.valve_position.cmd_t, 'cul/set/fht8w/4341/valve-position');
+        assert.equal(relay.components.active_position.p, 'sensor');
+        assert.equal(relay.components.active_position.stat_t, 'cul/status/fht8w/4341/active_position');
         assert.equal(relay.components.report.p, 'button');
         assert.equal(relay.components.report.cmd_t, 'cul/set/fht8w/4341/report');
         assert.equal(relay.components.report.pl_prs, 'PRESS');
+        assert.equal(relay.components.report.name, 'Request heat (130 s)');
     });
 
     test('online items become per-device availability, not sensors', () => {
