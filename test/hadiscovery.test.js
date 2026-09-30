@@ -275,7 +275,7 @@ describe('discoveryModel', () => {
         assert.equal(valve.device.mdl, 'FHT8V');
         assert.equal(valve.device.sn, '4341');
         assert.equal(valve.components.valve_position.p, 'number');
-        assert.equal(valve.components.valve_position.p.mode, 'box');
+        assert.equal(valve.components.valve_position.mode, 'box');
         assert.equal(valve.components.valve_position.cmd_t, 'cul/set/fht8v/4341/valve-position');
         assert.equal(valve.components.valve_position.stat_t, 'cul/status/fht8v/4341/valve_position');
         assert.equal(valve.components.valve_position.max, 100);
@@ -291,7 +291,7 @@ describe('discoveryModel', () => {
         assert.equal(relay.device.name, 'Virtual FHT8W');
         assert.equal(relay.device.mdl, 'FHT8W (emulated)');
         assert.equal(relay.components.valve_position.p, 'number');
-        assert.equal(relay.components.valve_position.p.mode, 'box');
+        assert.equal(relay.components.valve_position.mode, 'box');
         assert.equal(relay.components.valve_position.cmd_t, 'cul/set/fht8w/4341/valve-position');
         assert.equal(relay.components.active_position.p, 'sensor');
         assert.equal(relay.components.active_position.stat_t, 'cul/status/fht8w/4341/active_position');
