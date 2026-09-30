@@ -88,9 +88,9 @@ description; its **Documentation** page contains the complete configuration and 
    ```
 
 3. Start the app. It will discover supported radio devices and publish them to Home Assistant
-   through MQTT Discovery. Set `raw_set: true` to send manual raw CUL firmware commands. Debug
-   logging is not required to send them; `log_level: debug` only adds `cul <`/`cul >` traffic to the
-   app log. See the [Home Assistant app documentation](cul2mqtt/DOCS.md) for all configuration
+   through MQTT Discovery. Set `raw_set: true` to send manual raw CUL firmware commands. Sent
+   commands are recorded in the app log at `info`; `log_level: debug` also adds raw `cul <`/`cul >`
+   traffic. See the [Home Assistant app documentation](cul2mqtt/DOCS.md) for all configuration
    options, MQTT topics, maintenance functions, and protocol details.
 
 | option                               | default            | description                                                                      |
@@ -322,6 +322,12 @@ JSON message on `cul/event/<protocol>/<address>/<field>` (or the mapped item nam
 `cul/event/fht/4d3f/measured_temp`. It contains `protocol`, `address`, `field`, `value`, optional
 `rssi`, and `received_at`. This is the MQTT equivalent of FHEM's Event Monitor; unlike `cul/raw`,
 it shows decoded updates rather than radio frames.
+
+The app log also records successfully transmitted commands at `info`, using lines such as
+`cul event sent fht/423c/desired_temp = 21`. FS20 timer sends include the effective radio duration;
+if a requested duration is rounded to a supported interval, the log shows both durations. These
+sent entries are log-only; the MQTT `event` topic continues to report received device updates. Set
+`log_level: debug` to additionally see the raw outgoing `cul >` line.
 
 ### `cul/maintenance/set/<command>`
 
