@@ -11,6 +11,7 @@ import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
 import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
+import {rawCommandText} from './lib/raw-command.js';
 import {discoveryModel, normalizedDiscoveryIds} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -74,6 +75,8 @@ const fhtInitialized = new Set();
 const fhtInitialising = new Set();
 const fhtStateFile = config.stateDir ? path.join(config.stateDir, 'fht-initialized.json') : null;
 const fs20TimerFile = config.stateDir ? path.join(config.stateDir, 'fs20-timers.json') : null;
+const rawCommandFile = config.stateDir ? path.join(config.stateDir, 'raw-command.json') : null;
+let rawCommand = '';
 
 const FS20_TIMER_COUNT = 5;
 
@@ -167,6 +170,7 @@ const adapter = createAdapter({
             name: config.name,
             items: seen,
             jsonPayloads: config.jsonPayloads,
+            rawSet: config.rawSet,
             fs20Devices,
         });
         clearLegacyDiscoveryTopics(devices);
@@ -188,6 +192,39 @@ const adapter = createAdapter({
     },
 });
 const {log, pubStatus} = adapter;
+
+restoreRawCommand();
+if (config.rawSet) {
+    pubStatus('raw/command', rawCommand, {retain: true});
+}
+
+function restoreRawCommand() {
+    if (!rawCommandFile || !fs.existsSync(rawCommandFile)) {
+        return;
+    }
+    try {
+        const saved = JSON.parse(fs.readFileSync(rawCommandFile, 'utf8'));
+        if (typeof saved === 'string' && saved.length <= 128 && !/[\r\n]/.test(saved)) {
+            rawCommand = saved;
+        } else {
+            log.warn('cannot read', rawCommandFile, '- expected a single CUL command string');
+        }
+    } catch (err) {
+        log.warn('cannot read', rawCommandFile, '-', err.message);
+    }
+}
+
+function saveRawCommand() {
+    if (!rawCommandFile) {
+        return;
+    }
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        fs.writeFileSync(rawCommandFile, JSON.stringify(rawCommand));
+    } catch (err) {
+        log.warn('cannot save', rawCommandFile, '-', err.message);
+    }
+}
 
 function setFs20Devices(value) {
     const definitions = normaliseFs20Devices(value);
@@ -353,9 +390,53 @@ if (offline) {
  */
 
 async function handleSet(parts, value, topic) {
-    if (value === undefined) {
+    const rawCommandInput = String(parts[0]).toLowerCase() === 'raw' && parts.length === 2 && parts[1] === 'command';
+    if (value === undefined && !rawCommandInput) {
         log.warn('mqtt ignoring empty payload on', topic);
         return;
+    }
+    if (rawCommandInput) {
+        if (!config.rawSet) {
+            log.warn('mqtt set raw command: disabled (see --raw-set)');
+            return;
+        }
+        try {
+            rawCommand = rawCommandText(value === undefined ? '' : value);
+        } catch (err) {
+            log.warn('mqtt set raw command:', err.message);
+            return;
+        }
+        saveRawCommand();
+        pubStatus('raw/command', rawCommand, {retain: true});
+        log.info(rawCommand ? 'raw CUL command updated' : 'raw CUL command cleared');
+        return;
+    }
+    if (String(parts[0]).toLowerCase() === 'raw' && parts.length === 2 && parts[1] === 'send') {
+        if (!config.rawSet) {
+            log.warn('mqtt send raw command: disabled (see --raw-set)');
+            return;
+        }
+        if (String(value).trim().toUpperCase() !== 'PRESS') {
+            log.warn('mqtt send raw command: expected PRESS');
+            return;
+        }
+        if (!rawCommand) {
+            log.warn('mqtt send raw command: enter a command first');
+            return;
+        }
+        let command;
+        try {
+            command = commandFor(['raw'], rawCommand, {rawSet: true});
+        } catch (err) {
+            log.warn('mqtt send raw command:', err.message);
+            return;
+        }
+        if (!cul || !cul.connected) {
+            throw new Error('cul not connected');
+        }
+        log.info('raw CUL command button pressed');
+        log.debug('cul > raw', command.data);
+        return cul.write(command.data);
     }
     if (String(parts[0]).toLowerCase() === 'fs20' && parts.length === 3 && fs20TimerIndex(parts[2]) !== undefined) {
         const address = String(parts[1]).trim().toUpperCase();
