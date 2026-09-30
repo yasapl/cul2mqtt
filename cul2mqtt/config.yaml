@@ -25,6 +25,9 @@ options:
   scc: false
   fht_central: ''
   fs20_devices: []
+  fht8v_devices: []
+  fht8w_enabled: false
+  fht8w_address: ''
   instance_name: cul
   mqtt_url: ''
   mqtt_username: ''
@@ -57,6 +60,11 @@ schema:
       address: match(^[0-9A-Fa-f]{6}$)
       type: list(switch|light)?
       on_time: int?
+  fht8v_devices:
+    - name: str
+      address: match(^[0-9A-Fa-f]{4}$)
+  fht8w_enabled: bool
+  fht8w_address: str
   instance_name: str
   mqtt_url: str?
   mqtt_username: str?

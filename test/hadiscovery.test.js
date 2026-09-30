@@ -264,6 +264,38 @@ describe('discoveryModel', () => {
         assert.equal(plainSwitch.components.control.val_tpl, "{{ 'ON' if value == 'true' else 'OFF' }}");
     });
 
+    test('configured physical FHT8V valves expose position control and explicit pairing', () => {
+        const [, valve] = discoveryModel({
+            name: 'cul',
+            items: new Map(),
+            fht8vDevices: [{name: 'Living Room Valve', address: '4341'}],
+        });
+        assert.equal(valve.id, 'cul2mqtt_cul_fht8v_4341');
+        assert.equal(valve.device.name, 'Living Room Valve');
+        assert.equal(valve.device.mdl, 'FHT8V');
+        assert.equal(valve.device.sn, '4341');
+        assert.equal(valve.components.valve_position.p, 'number');
+        assert.equal(valve.components.valve_position.cmd_t, 'cul/set/fht8v/4341/valve-position');
+        assert.equal(valve.components.valve_position.stat_t, 'cul/status/fht8v/4341/valve_position');
+        assert.equal(valve.components.valve_position.max, 100);
+        assert.equal(valve.components.valve_position.step, 1);
+        assert.equal(valve.components.pair.p, 'button');
+        assert.equal(valve.components.pair.cmd_t, 'cul/set/fht8v/4341/pair');
+        assert.equal(valve.components.pair.pl_prs, 'PRESS');
+    });
+
+    test('virtual FHT8W announces staged position and report button', () => {
+        const [, relay] = discoveryModel({name: 'cul', items: new Map(), fht8wAddress: '4341'});
+        assert.equal(relay.id, 'cul2mqtt_cul_fht8w_4341');
+        assert.equal(relay.device.name, 'Virtual FHT8W');
+        assert.equal(relay.device.mdl, 'FHT8W (emulated)');
+        assert.equal(relay.components.valve_position.p, 'number');
+        assert.equal(relay.components.valve_position.cmd_t, 'cul/set/fht8w/4341/valve-position');
+        assert.equal(relay.components.report.p, 'button');
+        assert.equal(relay.components.report.cmd_t, 'cul/set/fht8w/4341/report');
+        assert.equal(relay.components.report.pl_prs, 'PRESS');
+    });
+
     test('online items become per-device availability, not sensors', () => {
         const items = new Map([
             ['ws/1/temperature', {val: 24.5, retain: true, raw: 'ws/1/temperature'}],

@@ -9,6 +9,12 @@ import pkg from './package.json' with {type: 'json'};
 import {fhtClockItems, fhtClockItemsFromValue, fhtMeasuredTemperature, itemsFor, mapItem} from './lib/items.js';
 import {commandFor} from './lib/commands.js';
 import {fhtCommand, fhtRawCommand} from './lib/fht-command.js';
+import {
+    defaultFht8wAddress,
+    fht8vPairCommand,
+    fht8vPositionCommand,
+    isFht8vAddressForCentral,
+} from './lib/fht8v-command.js';
 import {optimisticFs20State} from './lib/fs20-state.js';
 import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
 import {rawCommandText} from './lib/raw-command.js';
@@ -61,11 +67,42 @@ function normaliseFs20Devices(value) {
     }));
 }
 
+function normaliseFht8vDevices(value) {
+    const list = value === null ? [] : Array.isArray(value) ? value : [value];
+    return list.map((device) => ({
+        name: String(device?.name || '').trim(),
+        address: String(device?.address || '')
+            .trim()
+            .toUpperCase(),
+    }));
+}
+
 let fs20Devices;
 try {
     fs20Devices = normaliseFs20Devices(JSON.parse(config.fs20Devices || '[]'));
 } catch (err) {
     throw new Error(`invalid --fs20-devices JSON: ${err.message}`);
+}
+let fht8vDevices;
+try {
+    fht8vDevices = normaliseFht8vDevices(JSON.parse(config.fht8vDevices || '[]'));
+} catch (err) {
+    throw new Error(`invalid --fht8v-devices JSON: ${err.message}`);
+}
+const fht8vDeviceByAddress = new Map();
+const fht8vPositions = new Map();
+const fht8vStateFile = config.stateDir ? path.join(config.stateDir, 'fht8v-positions.json') : null;
+const fht8wStateFile = config.stateDir ? path.join(config.stateDir, 'fht8w-position.json') : null;
+let fht8wAddress = '';
+let fht8wPosition = 0;
+if (config.fht8wEnabled) {
+    fht8wAddress =
+        String(config.fht8wAddress || '')
+            .trim()
+            .toUpperCase() || defaultFht8wAddress(config.fhtCentral || '');
+    if (!isFht8vAddressForCentral(fht8wAddress, config.fhtCentral || '')) {
+        throw new Error('fht8w_address must be a 4-digit hexadecimal address compatible with fht_central');
+    }
 }
 let fs20DeviceByAddress = new Map();
 const fs20TimerValues = new Map();
@@ -119,7 +156,13 @@ function clearLegacyDiscoveryTopics(devices) {
         return;
     }
     const activeIds = new Set(devices.map((device) => device.id));
-    const normalizedIds = normalizedDiscoveryIds({name: config.name, items: seen, fs20Devices});
+    const normalizedIds = normalizedDiscoveryIds({
+        name: config.name,
+        items: seen,
+        fs20Devices,
+        fht8vDevices,
+        fht8wAddress: config.fht8wEnabled ? fht8wAddress : '',
+    });
     const legacyIds = devices.flatMap((device) => device.legacyDiscoveryIds || []);
     for (const id of [...normalizedIds, ...legacyIds]) {
         if (!id || activeIds.has(id) || clearedNormalizedDiscoveryIds.has(id)) {
@@ -172,6 +215,8 @@ const adapter = createAdapter({
             jsonPayloads: config.jsonPayloads,
             rawSet: config.rawSet,
             fs20Devices,
+            fht8vDevices,
+            fht8wAddress: config.fht8wEnabled ? fht8wAddress : '',
         });
         clearLegacyDiscoveryTopics(devices);
         return devices;
@@ -287,8 +332,112 @@ function setFs20Devices(value) {
     saveFs20Timers();
 }
 
+function setFht8vDevices(value) {
+    const definitions = normaliseFht8vDevices(value);
+    const invalid = definitions.find(
+        (device) =>
+            !device.name ||
+            !/^[0-9A-F]{4}$/.test(device.address) ||
+            !config.fhtCentral ||
+            !isFht8vAddressForCentral(device.address, config.fhtCentral),
+    );
+    if (invalid) {
+        throw new Error('Each FHT8V device needs a name and a 4-digit hexadecimal address compatible with fht_central');
+    }
+    const addresses = new Set();
+    for (const device of definitions) {
+        if (addresses.has(device.address)) {
+            throw new Error(`Duplicate FHT8V address: ${device.address}`);
+        }
+        addresses.add(device.address);
+    }
+    if (fht8wAddress && addresses.has(fht8wAddress)) {
+        throw new Error(`FHT8W report address ${fht8wAddress} is already configured as a physical FHT8V`);
+    }
+    fht8vDevices = definitions;
+    fht8vDeviceByAddress.clear();
+    for (const device of definitions) {
+        fht8vDeviceByAddress.set(device.address, device);
+        if (fht8vPositions.has(device.address)) {
+            pubStatus(`fht8v/${device.address.toLowerCase()}/valve_position`, fht8vPositions.get(device.address), {
+                retain: true,
+            });
+        }
+    }
+    for (const address of fht8vPositions.keys()) {
+        if (!fht8vDeviceByAddress.has(address)) {
+            fht8vPositions.delete(address);
+        }
+    }
+    adapter.markDiscoveryDirty();
+    adapter.publishDiscovery();
+    saveFht8vPositions();
+    if (fht8wAddress) {
+        loadFht8wPosition();
+        pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, fht8wPosition, {retain: true});
+    }
+}
+
+function loadFht8vPositions() {
+    if (!fht8vStateFile || !fs.existsSync(fht8vStateFile)) {
+        return;
+    }
+    try {
+        const saved = JSON.parse(fs.readFileSync(fht8vStateFile, 'utf8'));
+        for (const [address, value] of Object.entries(saved)) {
+            const normalized = address.toUpperCase();
+            const position = Number(value);
+            if (/^[0-9A-F]{4}$/.test(normalized) && Number.isInteger(position) && position >= 0 && position <= 100) {
+                fht8vPositions.set(normalized, position);
+            }
+        }
+    } catch (err) {
+        log.warn('cannot read', fht8vStateFile, '-', err.message);
+    }
+}
+
+function saveFht8vPositions() {
+    if (!fht8vStateFile) {
+        return;
+    }
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        fs.writeFileSync(fht8vStateFile, JSON.stringify(Object.fromEntries(fht8vPositions)));
+    } catch (err) {
+        log.warn('cannot save', fht8vStateFile, '-', err.message);
+    }
+}
+
+function loadFht8wPosition() {
+    if (!fht8wStateFile || !fs.existsSync(fht8wStateFile)) {
+        return;
+    }
+    try {
+        const value = Number(JSON.parse(fs.readFileSync(fht8wStateFile, 'utf8')));
+        if (Number.isInteger(value) && value >= 0 && value <= 100) {
+            fht8wPosition = value;
+        }
+    } catch (err) {
+        log.warn('cannot read', fht8wStateFile, '-', err.message);
+    }
+}
+
+function saveFht8wPosition() {
+    if (!fht8wStateFile) {
+        return;
+    }
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        fs.writeFileSync(fht8wStateFile, JSON.stringify(fht8wPosition));
+    } catch (err) {
+        log.warn('cannot save', fht8wStateFile, '-', err.message);
+    }
+}
+
 loadFs20Timers();
 setFs20Devices(fs20Devices);
+loadFht8vPositions();
+setFht8vDevices(fht8vDevices);
 
 /*
  * offline detection — devices that stop sending get a retained <protocol>/<address>/online item
@@ -445,6 +594,94 @@ async function handleSet(parts, value, topic) {
         }
         log.debug('cul > raw', command.data);
         return sendRaw(command.data);
+    }
+    if (String(parts[0]).toLowerCase() === 'fht8w' && parts.length === 3) {
+        if (!fht8wAddress) {
+            log.warn('mqtt set FHT8W emulator: disabled; enable fht8w_enabled in app configuration');
+            return;
+        }
+        const requestedAddress = String(parts[1]).trim().toUpperCase();
+        if (requestedAddress !== fht8wAddress) {
+            log.warn('mqtt set FHT8W emulator: unknown address', requestedAddress);
+            return;
+        }
+        const field = String(parts[2]).toLowerCase();
+        if (field === 'valve-position') {
+            const position = Number(value);
+            if (!Number.isInteger(position) || position < 0 || position > 100) {
+                log.warn('mqtt set FHT8W emulator: valve position must be an integer from 0 to 100');
+                return;
+            }
+            fht8wPosition = position;
+            saveFht8wPosition();
+            pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, fht8wPosition, {retain: true});
+            log.info('FHT8W emulator valve position set to', position, '%');
+            return;
+        }
+        if (field === 'report') {
+            if (String(value).trim().toUpperCase() !== 'PRESS') {
+                log.warn('mqtt set FHT8W emulator report: expected PRESS');
+                return;
+            }
+            if (!cul || !cul.connected) {
+                throw new Error('cul not connected');
+            }
+            if (!fhtCentralConfigured) {
+                throw new Error('FHT central code is not configured yet');
+            }
+            const data = fht8vPositionCommand(fht8wAddress, fht8wPosition);
+            log.debug('cul > FHT8W emulator', data);
+            await cul.write(data);
+            logSentEvent(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, `${fht8wPosition}%`);
+            return;
+        }
+        log.warn('mqtt set FHT8W emulator: unsupported field', field);
+        return;
+    }
+    if (String(parts[0]).toLowerCase() === 'fht8v' && parts.length === 3) {
+        const address = String(parts[1]).trim().toUpperCase();
+        const device = fht8vDeviceByAddress.get(address);
+        if (!device) {
+            log.warn('mqtt set FHT8V: unknown configured address', address);
+            return;
+        }
+        if (!cul || !cul.connected) {
+            throw new Error('cul not connected');
+        }
+        if (!fhtCentralConfigured) {
+            throw new Error('FHT central code is not configured yet');
+        }
+        const field = String(parts[2]).toLowerCase();
+        if (field === 'valve-position') {
+            const position = Number(value);
+            let data;
+            try {
+                data = fht8vPositionCommand(address, position);
+            } catch (err) {
+                log.warn('mqtt set FHT8V position:', err.message);
+                return;
+            }
+            log.debug('cul > FHT8V', data);
+            await cul.write(data);
+            fht8vPositions.set(address, position);
+            saveFht8vPositions();
+            pubStatus(`fht8v/${address.toLowerCase()}/valve_position`, position, {retain: true});
+            logSentEvent(`fht8v/${address.toLowerCase()}/valve_position`, position);
+            return;
+        }
+        if (field === 'pair') {
+            if (String(value).trim().toUpperCase() !== 'PRESS') {
+                log.warn('mqtt set FHT8V pair:', address, '- expected PRESS');
+                return;
+            }
+            const data = fht8vPairCommand(address);
+            log.debug('cul > FHT8V', data);
+            await cul.write(data);
+            logSentEvent(`fht8v/${address.toLowerCase()}/pair`, 'paired with CUL');
+            return;
+        }
+        log.warn('mqtt set FHT8V: unsupported field', field);
+        return;
     }
     if (String(parts[0]).toLowerCase() === 'fs20' && parts.length === 3 && fs20TimerIndex(parts[2]) !== undefined) {
         const address = String(parts[1]).trim().toUpperCase();

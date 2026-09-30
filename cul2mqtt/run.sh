@@ -52,6 +52,16 @@ FS20_DEVICES="$(bashio::config 'fs20_devices')"
 if [ "${FS20_DEVICES}" != '[]' ]; then
     args+=(--fs20-devices "${FS20_DEVICES}")
 fi
+FHT8V_DEVICES="$(bashio::config 'fht8v_devices')"
+if [ "${FHT8V_DEVICES}" != '[]' ]; then
+    args+=(--fht8v-devices "${FHT8V_DEVICES}")
+fi
+if bashio::config.true 'fht8w_enabled'; then
+    args+=(--fht8w-enabled)
+fi
+if bashio::config.has_value 'fht8w_address'; then
+    args+=(--fht8w-address "$(bashio::config 'fht8w_address')")
+fi
 if bashio::config.true 'publish_raw'; then
     args+=(--publish-raw)
 fi

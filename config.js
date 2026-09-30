@@ -40,6 +40,20 @@ export const OPTIONS = {
         default: '[]',
         describe: 'JSON array of explicit FS20 switch/light definitions (name, address, type)',
     },
+    'fht8v-devices': {
+        type: 'string',
+        default: '[]',
+        describe: 'JSON array of physical FHT8V valve definitions (name, four-digit address)',
+    },
+    'fht8w-enabled': {
+        type: 'boolean',
+        default: false,
+        describe: 'expose an emulated FHT8W relay device that sends valve-position reports',
+    },
+    'fht8w-address': {
+        type: 'string',
+        describe: 'optional four-digit hexadecimal FHT8W-compatible report address (default: derived from fht-central)',
+    },
     'offline-detection': {
         type: 'boolean',
         describe: 'mark silent devices offline on <protocol>/<address>/online (see README)',

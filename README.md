@@ -87,6 +87,32 @@ description; its **Documentation** page contains the complete configuration and 
        on_time: 300
    ```
 
+   Physical FHT8V valves can also be configured explicitly. Each gets a valve-position number
+   entity and a **Pair with CUL** button for the one-time pairing command. The valve address must
+   be compatible with `fht_central` (same low byte; high byte from the central's high byte through
+   the next seven values):
+
+   ```yaml
+   fht8v_devices:
+     - name: Living Room Radiator Valve
+       address: 4341
+   ```
+
+   To make a physical FHT8W demand relay react to a software-selected valve position, enable the
+   virtual FHT8W controls. The app chooses the next compatible address from `fht_central` by
+   default; set `fht8w_address` only when you need a specific address already entered into the
+   physical FHT8W:
+
+   ```yaml
+   fht8w_enabled: true
+   # fht8w_address: 4341
+   ```
+
+   Home Assistant then gets a position number and **Send valve report** button. Changing the number
+   only stages the position; pressing the button sends the report. Add that report address to the
+   physical FHT8W locally. Do not configure the same address as both a virtual report source and a
+   physical FHT8V valve.
+
 3. Start the app. It will discover supported radio devices and publish them to Home Assistant
    through MQTT Discovery. Set `raw_set: true` to send manual raw CUL firmware commands. Sent
    commands are recorded in the app log at `info`; `log_level: debug` also adds raw `cul <`/`cul >`

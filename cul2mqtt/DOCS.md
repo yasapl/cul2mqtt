@@ -30,35 +30,38 @@ must use that same broker for discovery to work.
 
 Options are set in the app's **Configuration** page. Defaults are shown below.
 
-| Option                  | Default         | Description                                                                                                                                                                                                           |
-| ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `serialport`            | `/dev/ttyACM0`  | Serial device path; used when `host` is empty.                                                                                                                                                                        |
-| `host`                  | empty           | CUNO/CUL hostname or IP. A value selects TCP instead of serial.                                                                                                                                                       |
-| `port`                  | `2323`          | CUNO/CUL TCP port.                                                                                                                                                                                                    |
-| `baudrate`              | `0`             | Serial baud rate override. `0` uses the CUL library default: 9600, or 38400 with `coc`/`scc`. Ignored for TCP.                                                                                                        |
-| `cul_mode`              | `SlowRF`        | Radio mode: `SlowRF`, `MORITZ`, or `AskSin`. Choose the mode matching the protocols and firmware in use.                                                                                                              |
-| `coc`                   | `false`         | Enable for a Busware COC connected to a Raspberry Pi.                                                                                                                                                                 |
-| `scc`                   | `false`         | Enable for a Busware SCC connected to a Raspberry Pi.                                                                                                                                                                 |
-| `fht_central`           | empty           | Four-digit hexadecimal FHT central ID. The app sets this as the CUL's own FHT ID on connection. Required for FHT commands, time sync, first-time climate initialization, and FHT8V raw commands.                      |
-| `fs20_devices`          | `[]`            | FS20 devices to expose in Home Assistant. Define each with a `name`, six-digit hexadecimal `address`, optional `type` (`switch` or `light`), and optional `on_time` initial timer value in seconds.                   |
-| `instance_name`         | `cul`           | Prefix for MQTT topics and the MQTT client ID. Change it when another CUL2MQTT instance uses the same broker.                                                                                                         |
-| `mqtt_url`              | empty           | Leave empty to use the Home Assistant MQTT service. For an external broker, set a URL such as `mqtt://broker:1883` or `mqtts://broker:8883`.                                                                          |
-| `mqtt_username`         | empty           | Username for an external MQTT broker.                                                                                                                                                                                 |
-| `mqtt_password`         | empty           | Password for an external MQTT broker.                                                                                                                                                                                 |
-| `mqtt_client_id_prefix` | empty           | Optional prefix for the MQTT client ID. A random suffix is added automatically.                                                                                                                                       |
-| `mqtt_tls_ca`           | empty           | Path to a CA certificate for an `mqtts://` broker. Store the file in the app configuration directory and use its `/config/...` path.                                                                                  |
-| `log_level`             | `info`          | Log level: `error`, `warn`, `info`, or `debug`. Info logs decoded received events and successfully sent commands; debug adds raw received `cul <` and outgoing `cul >` lines. Debug is not required to send commands. |
-| `publish_raw`           | `false`         | Publish raw lines received from the CUL on `<instance_name>/raw`. This is for monitoring incoming radio traffic.                                                                                                      |
-| `raw_set`               | `false`         | Accept raw CUL firmware commands on `<instance_name>/set/raw`. This enables sending commands; it is separate from `publish_raw`. See [Raw CUL commands](#raw-cul-commands).                                           |
-| `publish_events`        | `true`          | Publish each decoded field update as a non-retained message on `<instance_name>/event/...`.                                                                                                                           |
-| `offline_detection`     | `true`          | Mark devices unavailable when no message arrives within their timeout.                                                                                                                                                |
-| `learn_intervals`       | `true`          | Learn longer per-device offline timeouts from observed message gaps. Applies only when `offline_detection` is enabled.                                                                                                |
-| `json_payloads`         | `true`          | Publish retained status as mqtt-smarthome JSON (`val`, `ts`, `lc`). Disable for plain status values.                                                                                                                  |
-| `ha_discovery`          | `true`          | Publish Home Assistant MQTT Discovery. Disabling it also clears the app's retained discovery announcements.                                                                                                           |
-| `ha_prefix`             | `homeassistant` | Home Assistant MQTT Discovery prefix; must match the prefix configured in Home Assistant.                                                                                                                             |
-| `maintenance`           | `true`          | Enable MQTT commands to change log level or request a graceful restart. See [Maintenance topics](#maintenance-and-diagnostics).                                                                                       |
-| `stats_interval`        | `60`            | Publish retained process statistics every this many seconds to `<instance_name>/maintenance/stats`. Set to `0` to disable. This is independent of `maintenance`.                                                      |
-| `map_file`              | empty           | Optional JSON file mapping protocol/address/field names to friendly names. Put it in the app configuration directory and reference it as `/config/filename.json`.                                                     |
+| Option                  | Default         | Description                                                                                                                                                                                                                 |
+| ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serialport`            | `/dev/ttyACM0`  | Serial device path; used when `host` is empty.                                                                                                                                                                              |
+| `host`                  | empty           | CUNO/CUL hostname or IP. A value selects TCP instead of serial.                                                                                                                                                             |
+| `port`                  | `2323`          | CUNO/CUL TCP port.                                                                                                                                                                                                          |
+| `baudrate`              | `0`             | Serial baud rate override. `0` uses the CUL library default: 9600, or 38400 with `coc`/`scc`. Ignored for TCP.                                                                                                              |
+| `cul_mode`              | `SlowRF`        | Radio mode: `SlowRF`, `MORITZ`, or `AskSin`. Choose the mode matching the protocols and firmware in use.                                                                                                                    |
+| `coc`                   | `false`         | Enable for a Busware COC connected to a Raspberry Pi.                                                                                                                                                                       |
+| `scc`                   | `false`         | Enable for a Busware SCC connected to a Raspberry Pi.                                                                                                                                                                       |
+| `fht_central`           | empty           | Four-digit hexadecimal FHT central ID. The app sets this as the CUL's own FHT ID on connection. Required for FHT commands, time sync, first-time climate initialization, physical FHT8V control, and virtual FHT8W reports. |
+| `fs20_devices`          | `[]`            | FS20 devices to expose in Home Assistant. Define each with a `name`, six-digit hexadecimal `address`, optional `type` (`switch` or `light`), and optional `on_time` initial timer value in seconds.                         |
+| `fht8v_devices`         | `[]`            | Physical FHT8V valves to expose. Each entry has a `name` and four-digit hexadecimal `address` compatible with `fht_central`.                                                                                                |
+| `fht8w_enabled`         | `false`         | Expose virtual FHT8W controls to send a manually selected valve-position report to a physical FHT8W demand relay.                                                                                                           |
+| `fht8w_address`         | derived         | Optional four-digit hexadecimal report address for the virtual FHT8W. By default, the app uses the next compatible high byte after `fht_central`.                                                                           |
+| `instance_name`         | `cul`           | Prefix for MQTT topics and the MQTT client ID. Change it when another CUL2MQTT instance uses the same broker.                                                                                                               |
+| `mqtt_url`              | empty           | Leave empty to use the Home Assistant MQTT service. For an external broker, set a URL such as `mqtt://broker:1883` or `mqtts://broker:8883`.                                                                                |
+| `mqtt_username`         | empty           | Username for an external MQTT broker.                                                                                                                                                                                       |
+| `mqtt_password`         | empty           | Password for an external MQTT broker.                                                                                                                                                                                       |
+| `mqtt_client_id_prefix` | empty           | Optional prefix for the MQTT client ID. A random suffix is added automatically.                                                                                                                                             |
+| `mqtt_tls_ca`           | empty           | Path to a CA certificate for an `mqtts://` broker. Store the file in the app configuration directory and use its `/config/...` path.                                                                                        |
+| `log_level`             | `info`          | Log level: `error`, `warn`, `info`, or `debug`. Info logs decoded received events and successfully sent commands; debug adds raw received `cul <` and outgoing `cul >` lines. Debug is not required to send commands.       |
+| `publish_raw`           | `false`         | Publish raw lines received from the CUL on `<instance_name>/raw`. This is for monitoring incoming radio traffic.                                                                                                            |
+| `raw_set`               | `false`         | Accept raw CUL firmware commands on `<instance_name>/set/raw`. This enables sending commands; it is separate from `publish_raw`. See [Raw CUL commands](#raw-cul-commands).                                                 |
+| `publish_events`        | `true`          | Publish each decoded field update as a non-retained message on `<instance_name>/event/...`.                                                                                                                                 |
+| `offline_detection`     | `true`          | Mark devices unavailable when no message arrives within their timeout.                                                                                                                                                      |
+| `learn_intervals`       | `true`          | Learn longer per-device offline timeouts from observed message gaps. Applies only when `offline_detection` is enabled.                                                                                                      |
+| `json_payloads`         | `true`          | Publish retained status as mqtt-smarthome JSON (`val`, `ts`, `lc`). Disable for plain status values.                                                                                                                        |
+| `ha_discovery`          | `true`          | Publish Home Assistant MQTT Discovery. Disabling it also clears the app's retained discovery announcements.                                                                                                                 |
+| `ha_prefix`             | `homeassistant` | Home Assistant MQTT Discovery prefix; must match the prefix configured in Home Assistant.                                                                                                                                   |
+| `maintenance`           | `true`          | Enable MQTT commands to change log level or request a graceful restart. See [Maintenance topics](#maintenance-and-diagnostics).                                                                                             |
+| `stats_interval`        | `60`            | Publish retained process statistics every this many seconds to `<instance_name>/maintenance/stats`. Set to `0` to disable. This is independent of `maintenance`.                                                            |
+| `map_file`              | empty           | Optional JSON file mapping protocol/address/field names to friendly names. Put it in the app configuration directory and reference it as `/config/filename.json`.                                                           |
 
 ### Files in the app configuration directory
 
@@ -96,7 +99,7 @@ fs20_devices:
 Configure FS20 devices in the app's **Configuration** page. Changes take effect after saving and
 restarting the app.
 
-### FHT thermostats and FHT8V valves
+### FHT thermostats and valves
 
 FHT80b thermostats publish a native climate entity after reporting a temperature. The climate
 supports target temperature and `auto`/`heat` modes (`auto` maps to FHT automatic mode; `heat` maps
@@ -108,12 +111,20 @@ temperature, the app initializes it once to manual mode and 16 °C. Each thermos
 **Sync time** button; time is sent only when that button is pressed. Set `fht_central` for these
 commands to work.
 
-FHT8V valves do not currently have dedicated Home Assistant entities or decoded valve state.
-`raw_set` can send CUL firmware commands, but FHT8V operation through this app has not yet been
-verified end to end. The FHEM FHT8V module constructs valve-position commands in the form
-`T<housecode>0026<encoded-position>`; for address `4341` and 20%, that is `T4341002633`. culfw
-queues FHT8V commands for the valve's timeslot, so Home Assistant does not calculate the slot. The
-CUL's configured FHT ID must be compatible with the valve address.
+Configure physical FHT8V valves under `fht8v_devices`. Each gets a valve-position number entity and
+a **Pair with CUL** button. FHEM's FHT8V module sends `T<address>002F00` for pairing and
+`T<address>0026<encoded-position>` for position commands. Pair a real valve once with the CUL before
+controlling its position. Position commands are sent directly to culfw, which handles the radio
+timing; Home Assistant does not calculate a timeslot. The number retains the last position sent;
+the app does not currently read back the physical valve's actual position.
+
+The optional virtual FHT8W controls send a valve-position report to a physical FHT8W demand relay.
+The position number stages a value from 0 to 100%; the **Send valve report** button transmits it.
+The virtual report source does not need pairing. Add its four-digit address to the physical FHT8W
+through its local interface. By default the app derives this address from `fht_central` by adding
+one to the high byte (for example `4241` → `4341`); `fht8w_address` overrides it. FHT8V addresses
+must use the same low byte as the central and a high byte from the central's high byte through the
+next seven values. Do not assign the same address to a virtual reporter and a physical FHT8V.
 
 ## MQTT topics and commands
 
