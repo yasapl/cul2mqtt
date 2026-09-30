@@ -307,6 +307,14 @@ an unrestricted RF transmitter — protect your broker with authentication/ACLs 
 `--publish-raw` does the opposite: every line received from the CUL is published on `cul/raw`
 (not retained), useful for unsupported protocols.
 
+When `--raw-set` is enabled, the CUL bridge also exposes a **Raw CUL command** text entity and a
+**Send raw command** button through Home Assistant discovery. Enter a single command (up to 128
+characters) in the text entity, then press the button. The current text is saved under the
+configured state directory, when one is set, and restored after restart. The equivalent MQTT
+topics are `cul/set/raw/command` (set or clear the text) and `cul/set/raw/send` (payload `PRESS`).
+This is a convenience for the existing raw-send feature; direct publishing to `cul/set/raw`
+continues to work.
+
 ### Processed event monitor
 
 `--publish-events` is on by default. Every parsed field update is also published as a non-retained
