@@ -118,13 +118,19 @@ controlling its position. Position commands are sent directly to culfw, which ha
 timing; Home Assistant does not calculate a timeslot. The number retains the last position sent;
 the app does not currently read back the physical valve's actual position.
 
-The optional virtual FHT8W controls send a valve-position report to a physical FHT8W demand relay.
-The position number stages a value from 0 to 100%; the **Send valve report** button transmits it.
-The virtual report source does not need pairing. Add its four-digit address to the physical FHT8W
-through its local interface. By default the app derives this address from `fht_central` by adding
-one to the high byte (for example `4241` → `4341`); `fht8w_address` overrides it. FHT8V addresses
-must use the same low byte as the central and a high byte from the central's high byte through the
-next seven values. Do not assign the same address to a virtual reporter and a physical FHT8V.
+The optional virtual FHT8W controls send valve-position reports to a physical FHT8W demand relay.
+The **Heat request valve position** number selects the requested opening (20% by default); the
+**Request heat (130 s)** button activates that value for 130 seconds. Pressing it again renews the
+timer. The app sends 0% while idle and repeats the current value every 120 seconds. The separate
+**Last transmitted valve position** sensor shows the most recently sent value. A renewed request is
+included in the next report; when the timer expires, the next report returns to 0%. The
+reporter waits for each CUL write to complete before scheduling the next one, so it cannot build up
+a backlog of periodic reports. CUL/culfw handles the radio timing. The virtual report source does
+not need pairing. Add its four-digit address to the physical FHT8W through its local interface. By
+default the app derives this address from `fht_central` by adding one to the high byte (for example
+`4241` → `4341`); `fht8w_address` overrides it. FHT8V addresses must use the same low byte as the
+central and a high byte from the central's high byte through the next seven values. Do not assign
+the same address to a virtual reporter and a physical FHT8V.
 
 ## MQTT topics and commands
 
