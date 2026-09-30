@@ -193,6 +193,15 @@ const adapter = createAdapter({
 });
 const {log, pubStatus} = adapter;
 
+function logSentEvent(item, value, detail) {
+    log.info('cul event sent', item, '=', value, ...(detail ? [detail] : []));
+}
+
+async function sendRaw(data) {
+    await cul.write(data);
+    logSentEvent('raw/command', data);
+}
+
 restoreRawCommand();
 if (config.rawSet) {
     pubStatus('raw/command', rawCommand, {retain: true});
@@ -434,9 +443,8 @@ async function handleSet(parts, value, topic) {
         if (!cul || !cul.connected) {
             throw new Error('cul not connected');
         }
-        log.info('raw CUL command button pressed');
         log.debug('cul > raw', command.data);
-        return cul.write(command.data);
+        return sendRaw(command.data);
     }
     if (String(parts[0]).toLowerCase() === 'fs20' && parts.length === 3 && fs20TimerIndex(parts[2]) !== undefined) {
         const address = String(parts[1]).trim().toUpperCase();
@@ -498,7 +506,6 @@ async function handleSet(parts, value, topic) {
     }
     switch (command.type) {
         case 'fs20':
-            log.info('cul > FS20', command.housecode, command.address, command.cmd, command.time);
             return sendFs20(command);
         case 'fht':
             if (!config.fhtCentral) {
@@ -519,13 +526,14 @@ async function handleSet(parts, value, topic) {
                                 ? 'AUTO'
                                 : 'MANU'
                             : Number(command.value);
+                    logSentEvent(`fht/${String(command.device).toLowerCase()}/${field}`, value);
                     publishFhtField(command.device, field, value);
                 }
                 return;
             }
         case 'raw':
             log.debug('cul > raw', command.data);
-            return cul.write(command.data);
+            return sendRaw(command.data);
         default:
             throw new Error('unhandled command type ' + command.type);
     }
@@ -548,17 +556,18 @@ async function syncFhtTime(device) {
     }
     const now = new Date();
     const settings = [
-        ['60', now.getFullYear() % 100],
-        ['61', now.getMonth() + 1],
-        ['62', now.getDate()],
-        ['63', now.getHours()],
-        ['64', now.getMinutes()],
+        ['60', 'year', now.getFullYear() % 100],
+        ['61', 'month', now.getMonth() + 1],
+        ['62', 'day', now.getDate()],
+        ['63', 'hour', now.getHours()],
+        ['64', 'minute', now.getMinutes()],
     ];
     log.info('cul syncing time for FHT', address);
-    for (const [command, value] of settings) {
+    for (const [command, field, value] of settings) {
         const data = fhtRawCommand(address, command, value);
         log.debug('cul > FHT', data);
         await cul.write(data);
+        logSentEvent(`fht/${address.toLowerCase()}/${field}`, value);
         await new Promise((resolve) => setTimeout(resolve, 750));
     }
 }
@@ -599,7 +608,9 @@ async function initialiseFht(address) {
         const temperature = fhtCommand(address, 'desired-temp', 16);
         log.info('cul initialising FHT', address, 'to manual, 16 °C');
         await cul.write(mode);
+        logSentEvent(`fht/${address.toLowerCase()}/mode`, 'MANU');
         await cul.write(temperature);
+        logSentEvent(`fht/${address.toLowerCase()}/desired_temp`, 16);
         publishFhtField(address, 'mode', 'MANU');
         publishFhtField(address, 'desired_temp', 16);
         fhtInitialized.add(address);
@@ -616,6 +627,15 @@ async function sendFs20(command) {
     const definition = fs20DeviceByAddress.get(address);
     const {cmd, time} = command;
     await cul.cmd('FS20', command.housecode, command.address, cmd, time);
+    let timerDetail;
+    if (cmd.includes('timer') && isValidFs20TimerDuration(time) && Number(time) > 0) {
+        const effectiveSeconds = fs20TimerDuration(time);
+        timerDetail =
+            effectiveSeconds === Number(time)
+                ? `timer ${effectiveSeconds} seconds`
+                : `timer ${effectiveSeconds} seconds (requested ${time})`;
+    }
+    logSentEvent(`fs20/${address}`, cmd, timerDetail);
     if (!definition) {
         return;
     }
