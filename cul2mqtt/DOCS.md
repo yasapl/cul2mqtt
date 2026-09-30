@@ -30,35 +30,35 @@ must use that same broker for discovery to work.
 
 Options are set in the app's **Configuration** page. Defaults are shown below.
 
-| Option                  | Default         | Description                                                                                                                                                                                         |
-| ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `serialport`            | `/dev/ttyACM0`  | Serial device path; used when `host` is empty.                                                                                                                                                      |
-| `host`                  | empty           | CUNO/CUL hostname or IP. A value selects TCP instead of serial.                                                                                                                                     |
-| `port`                  | `2323`          | CUNO/CUL TCP port.                                                                                                                                                                                  |
-| `baudrate`              | `0`             | Serial baud rate override. `0` uses the CUL library default: 9600, or 38400 with `coc`/`scc`. Ignored for TCP.                                                                                      |
-| `cul_mode`              | `SlowRF`        | Radio mode: `SlowRF`, `MORITZ`, or `AskSin`. Choose the mode matching the protocols and firmware in use.                                                                                            |
-| `coc`                   | `false`         | Enable for a Busware COC connected to a Raspberry Pi.                                                                                                                                               |
-| `scc`                   | `false`         | Enable for a Busware SCC connected to a Raspberry Pi.                                                                                                                                               |
-| `fht_central`           | empty           | Four-digit hexadecimal FHT central ID. The app sets this as the CUL's own FHT ID on connection. Required for FHT commands, time sync, first-time climate initialization, and FHT8V raw commands.    |
-| `fs20_devices`          | `[]`            | FS20 devices to expose in Home Assistant. Define each with a `name`, six-digit hexadecimal `address`, optional `type` (`switch` or `light`), and optional `on_time` initial timer value in seconds. |
-| `instance_name`         | `cul`           | Prefix for MQTT topics and the MQTT client ID. Change it when another CUL2MQTT instance uses the same broker.                                                                                       |
-| `mqtt_url`              | empty           | Leave empty to use the Home Assistant MQTT service. For an external broker, set a URL such as `mqtt://broker:1883` or `mqtts://broker:8883`.                                                        |
-| `mqtt_username`         | empty           | Username for an external MQTT broker.                                                                                                                                                               |
-| `mqtt_password`         | empty           | Password for an external MQTT broker.                                                                                                                                                               |
-| `mqtt_client_id_prefix` | empty           | Optional prefix for the MQTT client ID. A random suffix is added automatically.                                                                                                                     |
-| `mqtt_tls_ca`           | empty           | Path to a CA certificate for an `mqtts://` broker. Store the file in the app configuration directory and use its `/config/...` path.                                                                |
-| `log_level`             | `info`          | Log level: `error`, `warn`, `info`, or `debug`. Debug logs include received `cul <` and outgoing `cul >` lines. Debug is not required to send commands.                                             |
-| `publish_raw`           | `false`         | Publish raw lines received from the CUL on `<instance_name>/raw`. This is for monitoring incoming radio traffic.                                                                                    |
-| `raw_set`               | `false`         | Accept raw CUL firmware commands on `<instance_name>/set/raw`. This enables sending commands; it is separate from `publish_raw`. See [Raw CUL commands](#raw-cul-commands).                         |
-| `publish_events`        | `true`          | Publish each decoded field update as a non-retained message on `<instance_name>/event/...`.                                                                                                         |
-| `offline_detection`     | `true`          | Mark devices unavailable when no message arrives within their timeout.                                                                                                                              |
-| `learn_intervals`       | `true`          | Learn longer per-device offline timeouts from observed message gaps. Applies only when `offline_detection` is enabled.                                                                              |
-| `json_payloads`         | `true`          | Publish retained status as mqtt-smarthome JSON (`val`, `ts`, `lc`). Disable for plain status values.                                                                                                |
-| `ha_discovery`          | `true`          | Publish Home Assistant MQTT Discovery. Disabling it also clears the app's retained discovery announcements.                                                                                         |
-| `ha_prefix`             | `homeassistant` | Home Assistant MQTT Discovery prefix; must match the prefix configured in Home Assistant.                                                                                                           |
-| `maintenance`           | `true`          | Enable MQTT commands to change log level or request a graceful restart. See [Maintenance topics](#maintenance-and-diagnostics).                                                                     |
-| `stats_interval`        | `60`            | Publish retained process statistics every this many seconds to `<instance_name>/maintenance/stats`. Set to `0` to disable. This is independent of `maintenance`.                                    |
-| `map_file`              | empty           | Optional JSON file mapping protocol/address/field names to friendly names. Put it in the app configuration directory and reference it as `/config/filename.json`.                                   |
+| Option                  | Default         | Description                                                                                                                                                                                                           |
+| ----------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serialport`            | `/dev/ttyACM0`  | Serial device path; used when `host` is empty.                                                                                                                                                                        |
+| `host`                  | empty           | CUNO/CUL hostname or IP. A value selects TCP instead of serial.                                                                                                                                                       |
+| `port`                  | `2323`          | CUNO/CUL TCP port.                                                                                                                                                                                                    |
+| `baudrate`              | `0`             | Serial baud rate override. `0` uses the CUL library default: 9600, or 38400 with `coc`/`scc`. Ignored for TCP.                                                                                                        |
+| `cul_mode`              | `SlowRF`        | Radio mode: `SlowRF`, `MORITZ`, or `AskSin`. Choose the mode matching the protocols and firmware in use.                                                                                                              |
+| `coc`                   | `false`         | Enable for a Busware COC connected to a Raspberry Pi.                                                                                                                                                                 |
+| `scc`                   | `false`         | Enable for a Busware SCC connected to a Raspberry Pi.                                                                                                                                                                 |
+| `fht_central`           | empty           | Four-digit hexadecimal FHT central ID. The app sets this as the CUL's own FHT ID on connection. Required for FHT commands, time sync, first-time climate initialization, and FHT8V raw commands.                      |
+| `fs20_devices`          | `[]`            | FS20 devices to expose in Home Assistant. Define each with a `name`, six-digit hexadecimal `address`, optional `type` (`switch` or `light`), and optional `on_time` initial timer value in seconds.                   |
+| `instance_name`         | `cul`           | Prefix for MQTT topics and the MQTT client ID. Change it when another CUL2MQTT instance uses the same broker.                                                                                                         |
+| `mqtt_url`              | empty           | Leave empty to use the Home Assistant MQTT service. For an external broker, set a URL such as `mqtt://broker:1883` or `mqtts://broker:8883`.                                                                          |
+| `mqtt_username`         | empty           | Username for an external MQTT broker.                                                                                                                                                                                 |
+| `mqtt_password`         | empty           | Password for an external MQTT broker.                                                                                                                                                                                 |
+| `mqtt_client_id_prefix` | empty           | Optional prefix for the MQTT client ID. A random suffix is added automatically.                                                                                                                                       |
+| `mqtt_tls_ca`           | empty           | Path to a CA certificate for an `mqtts://` broker. Store the file in the app configuration directory and use its `/config/...` path.                                                                                  |
+| `log_level`             | `info`          | Log level: `error`, `warn`, `info`, or `debug`. Info logs decoded received events and successfully sent commands; debug adds raw received `cul <` and outgoing `cul >` lines. Debug is not required to send commands. |
+| `publish_raw`           | `false`         | Publish raw lines received from the CUL on `<instance_name>/raw`. This is for monitoring incoming radio traffic.                                                                                                      |
+| `raw_set`               | `false`         | Accept raw CUL firmware commands on `<instance_name>/set/raw`. This enables sending commands; it is separate from `publish_raw`. See [Raw CUL commands](#raw-cul-commands).                                           |
+| `publish_events`        | `true`          | Publish each decoded field update as a non-retained message on `<instance_name>/event/...`.                                                                                                                           |
+| `offline_detection`     | `true`          | Mark devices unavailable when no message arrives within their timeout.                                                                                                                                                |
+| `learn_intervals`       | `true`          | Learn longer per-device offline timeouts from observed message gaps. Applies only when `offline_detection` is enabled.                                                                                                |
+| `json_payloads`         | `true`          | Publish retained status as mqtt-smarthome JSON (`val`, `ts`, `lc`). Disable for plain status values.                                                                                                                  |
+| `ha_discovery`          | `true`          | Publish Home Assistant MQTT Discovery. Disabling it also clears the app's retained discovery announcements.                                                                                                           |
+| `ha_prefix`             | `homeassistant` | Home Assistant MQTT Discovery prefix; must match the prefix configured in Home Assistant.                                                                                                                             |
+| `maintenance`           | `true`          | Enable MQTT commands to change log level or request a graceful restart. See [Maintenance topics](#maintenance-and-diagnostics).                                                                                       |
+| `stats_interval`        | `60`            | Publish retained process statistics every this many seconds to `<instance_name>/maintenance/stats`. Set to `0` to disable. This is independent of `maintenance`.                                                      |
+| `map_file`              | empty           | Optional JSON file mapping protocol/address/field names to friendly names. Put it in the app configuration directory and reference it as `/config/filename.json`.                                                     |
 
 ### Files in the app configuration directory
 
@@ -124,8 +124,9 @@ Replace `cul` in the topic examples with the configured `instance_name` if it di
 - `<instance_name>/status/<protocol>/<address>/<field>`: retained decoded status values. By default
   payloads are JSON objects containing `val`, `ts`, and `lc`; set `json_payloads: false` for plain
   values.
-- `<instance_name>/event/<protocol>/<address>/<field>`: decoded updates, non-retained, when
-  `publish_events` is enabled. These are useful as a processed event monitor.
+- `<instance_name>/event/<protocol>/<address>/<field>`: received decoded updates, non-retained,
+  when `publish_events` is enabled. These are useful as a processed event monitor. Commands sent by
+  the app are shown in the app log, not published on this event topic.
 - `<instance_name>/raw`: received CUL firmware lines, non-retained, when `publish_raw` is enabled.
 - `<instance_name>/info`: retained information about the running instance.
 
@@ -161,9 +162,10 @@ Payload: 21.5
 ### Raw CUL commands
 
 Set `raw_set: true` in the app's configuration to enable
-`<instance_name>/set/raw`. Publish a plain CUL firmware command as the payload. `log_level: debug`
-is not required; it only adds the outgoing command to the app log. `publish_raw` is also not
-required; it controls incoming raw messages in the opposite direction.
+`<instance_name>/set/raw`. Publish a plain CUL firmware command as the payload. Sent commands are
+recorded in the app log at `info`; `log_level: debug` additionally shows the raw outgoing `cul >`
+line. `publish_raw` is also not required; it controls incoming raw messages in the opposite
+direction.
 
 With `raw_set: true`, the CUL bridge device in Home Assistant also has a **Raw CUL command** text
 entity and a **Send raw command** button. Enter one command (up to 128 characters), then press the
