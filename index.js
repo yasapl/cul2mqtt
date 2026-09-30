@@ -19,7 +19,7 @@ import {optimisticFs20State} from './lib/fs20-state.js';
 import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
 import {rawCommandText} from './lib/raw-command.js';
 import {Fht8wReporter} from './lib/fht8w-reporter.js';
-import {discoveryModel, normalizedDiscoveryIds} from './lib/hadiscovery.js';
+import {discoveryModel, normalizedDiscoveryIds, obsoleteFhtDiscoveryId} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
 import {discoveryHint} from './lib/discovery.js';
@@ -225,6 +225,11 @@ const adapter = createAdapter({
     subscriptions: {
         'status/fht/+/+': (parts, value) => restoreFhtStatus(parts, value),
     },
+    listen: config.haDiscovery
+        ? {
+              [`${config.haPrefix}/device/+/config`]: clearObsoleteFhtDiscovery,
+          }
+        : {},
     onSet: handleSet,
     onShutdown: () => {
         clearInterval(offlineTimer);
@@ -238,6 +243,31 @@ const adapter = createAdapter({
         return Promise.race([cul.close(), new Promise((resolve) => setTimeout(resolve, 1000))]).catch(() => {});
     },
 });
+
+function clearObsoleteFhtDiscovery(topic, payload, _raw, packet) {
+    if (!packet.retain || !payload || typeof payload !== 'object') {
+        return;
+    }
+    const activeIds = discoveryModel({
+        name: config.name,
+        items: seen,
+        jsonPayloads: config.jsonPayloads,
+        rawSet: config.rawSet,
+        fs20Devices,
+        fht8vDevices,
+        fht8wAddress: config.fht8wEnabled ? fht8wAddress : '',
+    }).map(({id}) => id);
+    const obsoleteId = obsoleteFhtDiscoveryId(topic, {
+        name: config.name,
+        haPrefix: config.haPrefix,
+        activeIds,
+    });
+    if (!obsoleteId) {
+        return;
+    }
+    adapter.publish(topic, '', {retain: true});
+    log.info('mqtt cleared obsolete Home Assistant FHT discovery', obsoleteId);
+}
 const {log, pubStatus} = adapter;
 
 const fht8wReporter = fht8wAddress
