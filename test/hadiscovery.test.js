@@ -2,7 +2,7 @@ import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 import {devicePayload} from 'mqtt-interfaces-core';
 
-import {discoveryModel, normalizedDiscoveryIds, splitItem, uidFor} from '../lib/hadiscovery.js';
+import {discoveryModel, normalizedDiscoveryIds, obsoleteFhtDiscoveryId, splitItem, uidFor} from '../lib/hadiscovery.js';
 
 describe('discoveryModel', () => {
     test('bridge device plus one device per RF address with a sensor per scalar field', () => {
@@ -262,6 +262,38 @@ describe('discoveryModel', () => {
             fs20Devices: [{name: 'Pump', address: '6C4801', type: 'switch'}],
         });
         assert.equal(plainSwitch.components.control.val_tpl, "{{ 'ON' if value == 'true' else 'OFF' }}");
+    });
+
+    test('obsolete FHT8V and FHT8W retained discovery configs are identified for removal', () => {
+        const activeIds = ['cul2mqtt_cul_fht8v_4342', 'cul2mqtt_cul_fht8w_4341'];
+        assert.equal(
+            obsoleteFhtDiscoveryId('homeassistant/device/cul2mqtt_cul_fht8v_4341/config', {
+                name: 'cul',
+                activeIds,
+            }),
+            'cul2mqtt_cul_fht8v_4341',
+        );
+        assert.equal(
+            obsoleteFhtDiscoveryId('homeassistant/device/cul2mqtt_cul_fht8w_4340/config', {
+                name: 'cul',
+                activeIds,
+            }),
+            'cul2mqtt_cul_fht8w_4340',
+        );
+        assert.equal(
+            obsoleteFhtDiscoveryId('homeassistant/device/cul2mqtt_cul_fht8v_4342/config', {
+                name: 'cul',
+                activeIds,
+            }),
+            null,
+        );
+        assert.equal(
+            obsoleteFhtDiscoveryId('homeassistant/device/another_app_fht8v_4341/config', {
+                name: 'cul',
+                activeIds,
+            }),
+            null,
+        );
     });
 
     test('configured physical FHT8V valves expose position control and explicit pairing', () => {
