@@ -165,6 +165,13 @@ Set `raw_set: true` in the app's configuration to enable
 is not required; it only adds the outgoing command to the app log. `publish_raw` is also not
 required; it controls incoming raw messages in the opposite direction.
 
+With `raw_set: true`, the CUL bridge device in Home Assistant also has a **Raw CUL command** text
+entity and a **Send raw command** button. Enter one command (up to 128 characters), then press the
+button. The text value is saved in the app's `/data` state directory and restored after restart.
+These controls use `<instance_name>/set/raw/command` and
+`<instance_name>/set/raw/send` (payload `PRESS`). The direct `<instance_name>/set/raw` topic remains
+available.
+
 For example, with the default `instance_name: cul`:
 
 ```text
