@@ -18,6 +18,7 @@ import {
 import {optimisticFs20State} from './lib/fs20-state.js';
 import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
 import {rawCommandText} from './lib/raw-command.js';
+import {Fht8wReporter} from './lib/fht8w-reporter.js';
 import {discoveryModel, normalizedDiscoveryIds} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
 import {handle as handleInstall} from './lib/install.js';
@@ -94,7 +95,7 @@ const fht8vPositions = new Map();
 const fht8vStateFile = config.stateDir ? path.join(config.stateDir, 'fht8v-positions.json') : null;
 const fht8wStateFile = config.stateDir ? path.join(config.stateDir, 'fht8w-position.json') : null;
 let fht8wAddress = '';
-let fht8wPosition = 0;
+let fht8wPosition = 20;
 if (config.fht8wEnabled) {
     fht8wAddress =
         String(config.fht8wAddress || '')
@@ -228,6 +229,7 @@ const adapter = createAdapter({
     onShutdown: () => {
         clearInterval(offlineTimer);
         clearInterval(stateTimer);
+        fht8wReporter?.stop();
         saveState();
         if (!cul) {
             return;
@@ -237,6 +239,19 @@ const adapter = createAdapter({
     },
 });
 const {log, pubStatus} = adapter;
+
+const fht8wReporter = fht8wAddress
+    ? new Fht8wReporter({
+          address: fht8wAddress,
+          write: (data) => cul.write(data),
+          onTransmit: (position, data) => {
+              log.debug('cul > FHT8W emulator', data);
+              logSentEvent(`fht8w/${fht8wAddress.toLowerCase()}/active_position`, `${position}%`);
+              pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/active_position`, position, {retain: true});
+          },
+          onError: (err) => log.warn('FHT8W emulator report failed -', err.message),
+      })
+    : null;
 
 function logSentEvent(item, value, detail) {
     log.info('cul event sent', item, '=', value, ...(detail ? [detail] : []));
@@ -374,7 +389,9 @@ function setFht8vDevices(value) {
     saveFht8vPositions();
     if (fht8wAddress) {
         loadFht8wPosition();
+        fht8wReporter.setPosition(fht8wPosition);
         pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, fht8wPosition, {retain: true});
+        pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/active_position`, 0, {retain: true});
     }
 }
 
@@ -413,9 +430,13 @@ function loadFht8wPosition() {
         return;
     }
     try {
-        const value = Number(JSON.parse(fs.readFileSync(fht8wStateFile, 'utf8')));
+        const saved = JSON.parse(fs.readFileSync(fht8wStateFile, 'utf8'));
+        const versioned = saved && typeof saved === 'object' && saved.version === 2;
+        const value = Number(versioned ? saved.position : saved);
         if (Number.isInteger(value) && value >= 0 && value <= 100) {
-            fht8wPosition = value;
+            // Prior releases persisted 0 as the initial staged value. On upgrade, migrate that
+            // legacy default to 20%, the new heat-request setpoint; preserve explicit v2 values.
+            fht8wPosition = !versioned && value === 0 ? 20 : value;
         }
     } catch (err) {
         log.warn('cannot read', fht8wStateFile, '-', err.message);
@@ -428,7 +449,7 @@ function saveFht8wPosition() {
     }
     try {
         fs.mkdirSync(config.stateDir, {recursive: true});
-        fs.writeFileSync(fht8wStateFile, JSON.stringify(fht8wPosition));
+        fs.writeFileSync(fht8wStateFile, JSON.stringify({version: 2, position: fht8wPosition}));
     } catch (err) {
         log.warn('cannot save', fht8wStateFile, '-', err.message);
     }
@@ -613,6 +634,7 @@ async function handleSet(parts, value, topic) {
                 return;
             }
             fht8wPosition = position;
+            fht8wReporter.setPosition(position);
             saveFht8wPosition();
             pubStatus(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, fht8wPosition, {retain: true});
             log.info('FHT8W emulator valve position set to', position, '%');
@@ -623,16 +645,13 @@ async function handleSet(parts, value, topic) {
                 log.warn('mqtt set FHT8W emulator report: expected PRESS');
                 return;
             }
-            if (!cul || !cul.connected) {
-                throw new Error('cul not connected');
-            }
-            if (!fhtCentralConfigured) {
-                throw new Error('FHT central code is not configured yet');
-            }
-            const data = fht8vPositionCommand(fht8wAddress, fht8wPosition);
-            log.debug('cul > FHT8W emulator', data);
-            await cul.write(data);
-            logSentEvent(`fht8w/${fht8wAddress.toLowerCase()}/valve_position`, `${fht8wPosition}%`);
+            const expiresAt = fht8wReporter.requestHeat();
+            log.info(
+                'FHT8W emulator heat request renewed at',
+                fht8wPosition,
+                '% for 130 s (until',
+                new Date(expiresAt).toISOString() + ')',
+            );
             return;
         }
         log.warn('mqtt set FHT8W emulator: unsupported field', field);
@@ -976,11 +995,16 @@ function connect() {
         }
         adapter.setDeviceConnected(true);
         publishFs20TimerStates();
+        if (fht8wReporter && fhtCentralConfigured) {
+            fht8wReporter.start();
+            log.info('FHT8W emulator started periodic valve reports at 0% idle');
+        }
     });
 
     cul.on('data', onData);
 
     cul.on('close', () => {
+        fht8wReporter?.stop();
         fhtCentralConfigured = false;
         if (adapter.shuttingDown) {
             return;
