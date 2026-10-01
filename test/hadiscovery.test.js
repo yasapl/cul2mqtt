@@ -156,6 +156,19 @@ describe('discoveryModel', () => {
         assert.equal(dev.components.sync_time.p, 'button');
         assert.equal(dev.components.sync_time.cmd_t, 'cul/set/fht/4d3f/sync-time');
     });
+    test('FHT climate follows mapped state topics when its fields are renamed', () => {
+        const items = new Map([
+            ['living_room/current_temp', {val: 20.5, retain: true, raw: 'fht/4d3f/measured_temp'}],
+            ['living_room/target_temp', {val: 21, retain: true, raw: 'fht/4d3f/desired_temp'}],
+            ['living_room/operation', {val: 'AUTO', retain: true, raw: 'fht/4d3f/mode'}],
+            ['living_room/valve', {val: 25, retain: true, raw: 'fht/4d3f/actuator'}],
+        ]);
+        const [, dev] = discoveryModel({name: 'cul', items});
+        assert.equal(dev.components.climate.curr_temp_t, 'cul/status/living_room/current_temp');
+        assert.equal(dev.components.climate.temp_stat_t, 'cul/status/living_room/target_temp');
+        assert.equal(dev.components.climate.mode_stat_t, 'cul/status/living_room/operation');
+        assert.equal(dev.components.climate.act_t, 'cul/status/living_room/valve');
+    });
     test('FHT discovery uses an app-scoped identifier separate from a bare house code', () => {
         const items = new Map([['fht/423c/measured_temp', {val: 21, retain: true, raw: 'fht/423c/measured_temp'}]]);
         const [, fht] = discoveryModel({name: 'MAX_CUL', items});
