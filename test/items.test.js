@@ -99,6 +99,17 @@ describe('itemsFor', () => {
         assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmdRaw: 'ff', cmd: 'UNKNOWN'}}), []);
     });
 
+    test('FHT addresses are lowercase in MQTT item topics', () => {
+        assert.deepEqual(
+            itemsFor({
+                protocol: 'FHT',
+                address: '423D',
+                data: {cmd: 'desired-temp', value: 12},
+            }),
+            [{item: 'fht/423d/desired_temp', val: 12, retain: true}],
+        );
+    });
+
     test('FHT warnings add diagnostic booleans', () => {
         assert.deepEqual(itemsFor({protocol: 'FHT', address: '4d3f', data: {cmd: 'warnings', value: 'BATT LOW'}}), [
             {item: 'fht/4d3f/warnings', val: 'BATT LOW', retain: true},
@@ -179,6 +190,19 @@ describe('fhtMeasuredTemperature', () => {
             {item: 'fht/4240/measured_temp', val: 22.3, retain: true},
         );
     });
+
+    test('normalizes mixed-case FHT addresses and cache keys', () => {
+        const parts = new Map();
+        fhtMeasuredTemperature({protocol: 'FHT', address: '423D', data: {cmd: 'measured-low', valueRaw: 'E8'}}, parts);
+        assert.deepEqual(
+            fhtMeasuredTemperature(
+                {protocol: 'FHT', address: '423d', data: {cmd: 'measured-high', valueRaw: '00'}},
+                parts,
+            ),
+            {item: 'fht/423d/measured_temp', val: 23.2, retain: true},
+        );
+        assert.deepEqual([...parts.keys()], ['423d']);
+    });
 });
 
 describe('mapItem', () => {
@@ -225,5 +249,14 @@ describe('fhtClockItemsFromValue', () => {
         ]);
         assert.equal(parts.get('423c').hour, 22);
         assert.deepEqual(fhtClockItemsFromValue('423c', 'minute', 60, parts), []);
+    });
+
+    test('normalizes uppercase address for cached clock bytes and output topics', () => {
+        const parts = new Map();
+        assert.deepEqual(fhtClockItemsFromValue('423D', 'hour', '0C', parts), []);
+        assert.deepEqual(fhtClockItemsFromValue('423d', 'minute', '1E', parts), [
+            {item: 'fht/423d/time', val: '12:30', retain: true},
+        ]);
+        assert.deepEqual([...parts.keys()], ['423d']);
     });
 });

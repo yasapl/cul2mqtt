@@ -181,7 +181,8 @@ function clearLegacyDiscoveryTopics(devices) {
  * device discovery payload update friendly names and drop obsolete components.
  */
 function restoreFhtStatus(parts, payload) {
-    const [address, field] = parts;
+    const [rawAddress, field] = parts;
+    const address = String(rawAddress || '').toLowerCase();
     if (!/^[0-9A-F]{4}$/i.test(address || '') || !field) return;
     const rawItem = `fht/${address}/${field}`;
     const value = payload && typeof payload === 'object' && Object.hasOwn(payload, 'val') ? payload.val : payload;
@@ -864,6 +865,7 @@ function hasFhtField(address, field) {
 }
 
 function publishFhtField(address, field, value) {
+    address = String(address).toLowerCase();
     const item = `fht/${address}/${field}`;
     const name = mapItem(item, map);
     const isNew = !seen.has(name);
