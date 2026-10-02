@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {parseMessage} from 'cul';
 
 import {
     CUL_DIAGNOSTICS,
@@ -24,6 +25,14 @@ test('decodes the common CUL diagnostic replies', () => {
     assert.equal(formatDiagnosticResult('fhtbuf', '74'), '116 bytes free (0x74)');
     assert.equal(formatDiagnosticResult('cmds', 'CUL Use one of V ? T03'), 'V ? T03');
     assert.equal(formatDiagnosticResult('credit10ms', 'X 42'), '42');
+});
+
+test('accepts a short T03 hex reply even if the RF parser classifies its first nibble', () => {
+    const reply = 'F0';
+    assert.equal(parseMessage(reply).protocol, 'FS20');
+    assert.equal(CUL_DIAGNOSTICS.fhtbuf.match(reply), true);
+    assert.equal(CUL_DIAGNOSTICS.fhtbuf.allowParsedReply, true);
+    assert.equal(CUL_DIAGNOSTICS.fhtbuf.match('F000'), false);
 });
 
 test('reads the six CC1101 registers and formats a CUL style summary', () => {

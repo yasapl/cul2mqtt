@@ -302,12 +302,15 @@ async function sendRaw(data) {
     logSentEvent('raw/command', data);
 }
 
-function waitForDiagnosticLine(match, timeoutMs = 3000) {
+function waitForDiagnosticLine(match, timeoutMs = 3000, allowParsedReply = false) {
     let waiter;
     const promise = new Promise((resolve, reject) => {
         waiter = {
-            accept(line) {
+            accept(line, obj) {
                 if (!match(line)) return false;
+                // Some command replies are short hexadecimal strings. The
+                // generic CUL parser may mistake these for RF protocol frames.
+                if (!allowParsedReply && obj && obj.protocol && obj.protocol !== 'culfw') return false;
                 clearTimeout(timeout);
                 if (diagnosticWaiter === waiter) diagnosticWaiter = null;
                 resolve(line);
@@ -333,8 +336,8 @@ function waitForDiagnosticLine(match, timeoutMs = 3000) {
     };
 }
 
-async function queryDiagnosticLine(command, match) {
-    const response = waitForDiagnosticLine(match);
+async function queryDiagnosticLine(command, match, allowParsedReply = false) {
+    const response = waitForDiagnosticLine(match, 3000, allowParsedReply);
     try {
         await cul.write(command);
     } catch (err) {
@@ -371,7 +374,7 @@ async function runDiagnostic(name) {
                 log.warn('unknown CUL diagnostic query', name);
                 return;
             }
-            const response = await queryDiagnosticLine(query.command, query.match);
+            const response = await queryDiagnosticLine(query.command, query.match, query.allowParsedReply);
             result = formatDiagnosticResult(name, response);
         }
         const label = name === 'ccconf' ? 'CC1101 configuration' : CUL_DIAGNOSTICS[name].label;
@@ -390,10 +393,11 @@ async function runDiagnostic(name) {
 }
 
 function handleDiagnosticResponse(raw, obj) {
+    if (!diagnosticWaiter) return;
     // CUL's own `V` and bare `X` replies are parsed as protocol `culfw`; other
-    // parsed protocol packets are RF traffic and must not satisfy a query.
-    if (!diagnosticWaiter || (obj && obj.protocol && obj.protocol !== 'culfw')) return;
-    diagnosticWaiter.accept(String(raw).trim());
+    // replies are RF traffic unless a query explicitly accepts a short reply
+    // that the parser may misclassify (T03's one-byte hex buffer count).
+    diagnosticWaiter.accept(String(raw).trim(), obj);
 }
 
 restoreRawCommand();

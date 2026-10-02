@@ -86,6 +86,7 @@ describe('discoveryModel', () => {
             assert.equal(bridge.components[`diagnostic_${key}`].pl_prs, 'PRESS');
         }
         assert.equal(bridge.components.diagnostic_result.p, 'text');
+        assert.equal(bridge.components.diagnostic_result.cmd_t, 'cul/set/diagnostic/result');
         assert.equal(bridge.components.diagnostic_result.stat_t, 'cul/status/diagnostic/result');
         assert.equal(bridge.components.diagnostic_result.val_tpl, '{{ value_json.val }}');
     });
