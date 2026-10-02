@@ -64,6 +64,8 @@ describe('discoveryModel', () => {
         const [disabled] = discoveryModel({name: 'cul', items: new Map()});
         assert.equal(disabled.components.raw_command, undefined);
         assert.equal(disabled.components.send_raw_command, undefined);
+        assert.equal(disabled.components.diagnostic_version.p, 'button');
+        assert.equal(disabled.components.diagnostic_result.p, 'text');
 
         const [bridge] = discoveryModel({
             name: 'cul',
@@ -78,6 +80,14 @@ describe('discoveryModel', () => {
         assert.equal(bridge.components.send_raw_command.p, 'button');
         assert.equal(bridge.components.send_raw_command.cmd_t, 'cul/set/raw/send');
         assert.equal(bridge.components.send_raw_command.pl_prs, 'PRESS');
+        for (const key of ['ccconf', 'cmds', 'credit10ms', 'fhtbuf', 'uptime', 'version']) {
+            assert.equal(bridge.components[`diagnostic_${key}`].p, 'button');
+            assert.equal(bridge.components[`diagnostic_${key}`].cmd_t, `cul/set/diagnostic/${key}`);
+            assert.equal(bridge.components[`diagnostic_${key}`].pl_prs, 'PRESS');
+        }
+        assert.equal(bridge.components.diagnostic_result.p, 'text');
+        assert.equal(bridge.components.diagnostic_result.stat_t, 'cul/status/diagnostic/result');
+        assert.equal(bridge.components.diagnostic_result.val_tpl, '{{ value_json.val }}');
     });
 
     test('mapped device names keep the protocol from the raw item', () => {

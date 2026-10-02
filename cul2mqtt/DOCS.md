@@ -191,6 +191,15 @@ These controls use `<instance_name>/set/raw/command` and
 `<instance_name>/set/raw/send` (payload `PRESS`). The direct `<instance_name>/set/raw` topic remains
 available.
 
+The bridge also exposes read-only diagnostic buttons for **CC1101 configuration**, **Available CUL
+commands**, **CUL transmission credit**, **FHT buffer space**, **CUL uptime**, and **CUL firmware
+version**. They send the corresponding fixed CUL queries (`C0D`…`C1D`, `?`, `X`, `T03`, `t`, and
+`V`). Their replies are captured internally and displayed in the retained **Last CUL query result**
+text entity; raw message publishing is not required. Each query waits up to three seconds for its
+reply. These fixed read-only buttons do not require either `raw_set` or `publish_raw`. Equivalent
+MQTT buttons accept `PRESS` on `<instance_name>/set/diagnostic/<query>`, where `<query>` is `ccconf`,
+`cmds`, `credit10ms`, `fhtbuf`, `uptime`, or `version`.
+
 For example, with the default `instance_name: cul`:
 
 ```text

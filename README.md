@@ -342,6 +342,11 @@ topics are `cul/set/raw/command` (set or clear the text) and `cul/set/raw/send` 
 This is a convenience for the existing raw-send feature; direct publishing to `cul/set/raw`
 continues to work.
 
+The CUL bridge also provides fixed diagnostic buttons for firmware version, uptime, FHT buffer
+space, transmission credit, supported commands, and CC1101 configuration. Replies appear in one
+retained **Last CUL query result** text entity. These fixed read-only buttons do not require
+`--raw-set` or `--publish-raw`.
+
 ### Processed event monitor
 
 `--publish-events` is on by default. Every parsed field update is also published as a non-retained

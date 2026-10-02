@@ -18,6 +18,13 @@ import {
 import {optimisticFs20State} from './lib/fs20-state.js';
 import {fs20TimerDuration, isValidFs20TimerDuration} from './lib/fs20-timer.js';
 import {rawCommandText} from './lib/raw-command.js';
+import {
+    CUL_DIAGNOSTICS,
+    ccconfRegisters,
+    formatCcconf,
+    formatDiagnosticResult,
+    parseCcconfRegister,
+} from './lib/diagnostics.js';
 import {Fht8wReporter} from './lib/fht8w-reporter.js';
 import {discoveryModel, normalizedDiscoveryIds, obsoleteFhtDiscoveryId} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
@@ -115,6 +122,8 @@ const fhtStateFile = config.stateDir ? path.join(config.stateDir, 'fht-initializ
 const fs20TimerFile = config.stateDir ? path.join(config.stateDir, 'fs20-timers.json') : null;
 const rawCommandFile = config.stateDir ? path.join(config.stateDir, 'raw-command.json') : null;
 let rawCommand = '';
+let diagnosticBusy = false;
+let diagnosticWaiter = null;
 
 const FS20_TIMER_COUNT = 5;
 
@@ -291,6 +300,100 @@ function logSentEvent(item, value, detail) {
 async function sendRaw(data) {
     await cul.write(data);
     logSentEvent('raw/command', data);
+}
+
+function waitForDiagnosticLine(match, timeoutMs = 3000) {
+    let waiter;
+    const promise = new Promise((resolve, reject) => {
+        waiter = {
+            accept(line) {
+                if (!match(line)) return false;
+                clearTimeout(timeout);
+                if (diagnosticWaiter === waiter) diagnosticWaiter = null;
+                resolve(line);
+                return true;
+            },
+            cancel(err) {
+                clearTimeout(timeout);
+                if (diagnosticWaiter === waiter) diagnosticWaiter = null;
+                reject(err);
+            },
+        };
+        const timeout = setTimeout(() => {
+            if (diagnosticWaiter === waiter) diagnosticWaiter = null;
+            reject(new Error('timed out waiting for CUL reply'));
+        }, timeoutMs);
+        diagnosticWaiter = waiter;
+    });
+    return {
+        promise,
+        cancel(err) {
+            waiter.cancel(err);
+        },
+    };
+}
+
+async function queryDiagnosticLine(command, match) {
+    const response = waitForDiagnosticLine(match);
+    try {
+        await cul.write(command);
+    } catch (err) {
+        response.cancel(err);
+        throw err;
+    }
+    logSentEvent(`diagnostic/${command}`, 'query');
+    return response.promise;
+}
+
+async function runDiagnostic(name) {
+    if (diagnosticBusy) {
+        log.warn('CUL diagnostic query ignored: another query is still running');
+        return;
+    }
+    if (!cul || !cul.connected) throw new Error('cul not connected');
+    diagnosticBusy = true;
+    try {
+        let result;
+        if (name === 'ccconf') {
+            const values = {};
+            for (const register of ccconfRegisters()) {
+                const response = await queryDiagnosticLine(`C${register}`, (line) => {
+                    const parsed = parseCcconfRegister(line);
+                    return parsed?.register === register;
+                });
+                const parsed = parseCcconfRegister(response);
+                values[register] = parsed.value;
+            }
+            result = formatCcconf(values);
+        } else {
+            const query = CUL_DIAGNOSTICS[name];
+            if (!query) {
+                log.warn('unknown CUL diagnostic query', name);
+                return;
+            }
+            const response = await queryDiagnosticLine(query.command, query.match);
+            result = formatDiagnosticResult(name, response);
+        }
+        const label = name === 'ccconf' ? 'CC1101 configuration' : CUL_DIAGNOSTICS[name].label;
+        const value = `${label}: ${result}`;
+        pubStatus('diagnostic/result', value, {retain: true});
+        log.info('CUL diagnostic result', value);
+    } catch (err) {
+        const label = name === 'ccconf' ? 'CC1101 configuration' : CUL_DIAGNOSTICS[name]?.label || name;
+        const value = `${label}: ${err.message}`;
+        pubStatus('diagnostic/result', value, {retain: true});
+        log.warn('CUL diagnostic query failed -', err.message);
+    } finally {
+        diagnosticWaiter = null;
+        diagnosticBusy = false;
+    }
+}
+
+function handleDiagnosticResponse(raw, obj) {
+    // CUL's own `V` and bare `X` replies are parsed as protocol `culfw`; other
+    // parsed protocol packets are RF traffic and must not satisfy a query.
+    if (!diagnosticWaiter || (obj && obj.protocol && obj.protocol !== 'culfw')) return;
+    diagnosticWaiter.accept(String(raw).trim());
 }
 
 restoreRawCommand();
@@ -646,6 +749,13 @@ async function handleSet(parts, value, topic) {
         }
         log.debug('cul > raw', command.data);
         return sendRaw(command.data);
+    }
+    if (String(parts[0]).toLowerCase() === 'diagnostic' && parts.length === 2) {
+        if (String(value).trim().toUpperCase() !== 'PRESS') {
+            log.warn('CUL diagnostic query: expected PRESS');
+            return;
+        }
+        return runDiagnostic(String(parts[1]).toLowerCase());
     }
     if (String(parts[0]).toLowerCase() === 'fht8w' && parts.length === 3) {
         if (!fht8wAddress) {
@@ -1063,6 +1173,7 @@ function connect() {
 }
 
 function onData(raw, obj) {
+    handleDiagnosticResponse(raw, obj);
     log.debug('cul <', raw, obj && obj.protocol ? JSON.stringify(obj) : '');
     if (config.publishRaw) {
         adapter.publish(adapter.topic('raw'), raw, {retain: false});
