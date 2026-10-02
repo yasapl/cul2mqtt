@@ -347,6 +347,9 @@ space, transmission credit, supported commands, and CC1101 configuration. Replie
 retained **Last CUL query result** text entity. These fixed read-only buttons do not require
 `--raw-set` or `--publish-raw`.
 
+The text entity displays up to 255 characters, Home Assistant's state length limit. Complete
+query results are logged at `info` level.
+
 ### Processed event monitor
 
 `--publish-events` is on by default. Every parsed field update is also published as a non-retained

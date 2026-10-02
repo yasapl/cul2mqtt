@@ -379,12 +379,14 @@ async function runDiagnostic(name) {
         }
         const label = name === 'ccconf' ? 'CC1101 configuration' : CUL_DIAGNOSTICS[name].label;
         const value = `${label}: ${result}`;
-        pubStatus('diagnostic/result', value, {retain: true});
+        // Home Assistant limits text entity state to 255 characters. Keep the
+        // complete reply in the log, even when its display value is truncated.
+        pubStatus('diagnostic/result', value.slice(0, 255), {retain: true});
         log.info('CUL diagnostic result', value);
     } catch (err) {
         const label = name === 'ccconf' ? 'CC1101 configuration' : CUL_DIAGNOSTICS[name]?.label || name;
         const value = `${label}: ${err.message}`;
-        pubStatus('diagnostic/result', value, {retain: true});
+        pubStatus('diagnostic/result', value.slice(0, 255), {retain: true});
         log.warn('CUL diagnostic query failed -', err.message);
     } finally {
         diagnosticWaiter = null;

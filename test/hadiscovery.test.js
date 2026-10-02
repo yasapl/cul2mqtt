@@ -89,6 +89,7 @@ describe('discoveryModel', () => {
         assert.equal(bridge.components.diagnostic_result.cmd_t, 'cul/set/diagnostic/result');
         assert.equal(bridge.components.diagnostic_result.stat_t, 'cul/status/diagnostic/result');
         assert.equal(bridge.components.diagnostic_result.val_tpl, '{{ value_json.val }}');
+        assert.ok(bridge.components.diagnostic_result.max <= 255, 'HA rejects text max above 255');
     });
 
     test('mapped device names keep the protocol from the raw item', () => {

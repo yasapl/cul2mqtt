@@ -200,6 +200,9 @@ reply. These fixed read-only buttons do not require either `raw_set` or `publish
 MQTT buttons accept `PRESS` on `<instance_name>/set/diagnostic/<query>`, where `<query>` is `ccconf`,
 `cmds`, `credit10ms`, `fhtbuf`, `uptime`, or `version`.
 
+The text entity displays up to 255 characters, Home Assistant's state length limit. Complete
+query results are logged at `info` level.
+
 For example, with the default `instance_name: cul`:
 
 ```text
