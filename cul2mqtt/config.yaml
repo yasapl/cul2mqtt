@@ -1,5 +1,5 @@
 name: CUL2MQTT
-version: '0.2.33'
+version: '0.2.34'
 slug: cul2mqtt
 description: Bridge culfw CUL, COC, SCC, and CUNO radios to MQTT and Home Assistant discovery
 url: https://github.com/yasapl/cul2mqtt
