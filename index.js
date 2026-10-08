@@ -25,6 +25,7 @@ import {
     formatDiagnosticResult,
     parseCcconfRegister,
 } from './lib/diagnostics.js';
+import {CommunicationTracker, communicationTopic} from './lib/communication.js';
 import {Fht8wReporter} from './lib/fht8w-reporter.js';
 import {discoveryModel, normalizedDiscoveryIds, obsoleteFhtDiscoveryId} from './lib/hadiscovery.js';
 import {OfflineTracker, timeoutsFromMap} from './lib/offline.js';
@@ -279,6 +280,34 @@ function clearObsoleteFhtDiscovery(topic, payload, _raw, packet) {
     log.info('mqtt cleared obsolete Home Assistant FHT discovery', obsoleteId);
 }
 const {log, pubStatus} = adapter;
+const communicationFile = config.stateDir ? path.join(config.stateDir, 'communication.json') : null;
+let communicationState = [];
+if (communicationFile && fs.existsSync(communicationFile)) {
+    try {
+        const saved = JSON.parse(fs.readFileSync(communicationFile, 'utf8'));
+        if (Array.isArray(saved)) communicationState = saved;
+    } catch (err) {
+        log.warn('cannot load communication state -', err.message);
+    }
+}
+const communication = new CommunicationTracker(communicationState);
+function publishCommunication(direction, item, value, options = {}) {
+    const event = communication.record(direction, item, value, options);
+    if (event) adapter.publish(adapter.topic(communicationTopic(item)), event, {retain: false});
+}
+function saveCommunicationState() {
+    if (!communicationFile) return;
+    try {
+        fs.mkdirSync(config.stateDir, {recursive: true});
+        const temporary = `${communicationFile}.tmp`;
+        fs.writeFileSync(temporary, JSON.stringify(communication.state()));
+        fs.renameSync(temporary, communicationFile);
+    } catch (err) {
+        log.warn('cannot save communication state -', err.message);
+    }
+}
+const communicationTimer = communicationFile ? setInterval(saveCommunicationState, STATE_SAVE_MS) : null;
+communicationTimer?.unref();
 
 const fht8wReporter = fht8wAddress
     ? new Fht8wReporter({
@@ -295,6 +324,11 @@ const fht8wReporter = fht8wAddress
 
 function logSentEvent(item, value, detail) {
     log.info('cul event sent', item, '=', value, ...(detail ? [detail] : []));
+    publishCommunication('sent', item, value, {
+        detail,
+        repeat:
+            item.endsWith('/pair') || ['toggle', 'dimup', 'dimdown', 'dimupdown'].includes(value) || Boolean(detail),
+    });
 }
 
 async function sendRaw(data) {
@@ -631,6 +665,7 @@ if (fhtStateFile && fs.existsSync(fhtStateFile)) {
 }
 
 function saveState() {
+    saveCommunicationState();
     if (!stateFile) {
         return;
     }
@@ -973,6 +1008,7 @@ async function syncFhtTime(device) {
         logSentEvent(`fht/${address.toLowerCase()}/${field}`, value);
         await new Promise((resolve) => setTimeout(resolve, 750));
     }
+    publishCommunication('sent', `fht/${address.toLowerCase()}/sync_time`, now.toISOString(), {repeat: true});
 }
 
 function hasFhtField(address, field) {
@@ -1213,6 +1249,7 @@ function onData(raw, obj) {
             newItems = true;
             log.info('cul new item', name, obj.device ? `(${obj.device})` : '');
         }
+        publishCommunication('received', item, val);
         log.info('cul event', name, '=', val);
         seen.set(name, {val, retain, raw: item, device: obj.device});
         pubStatus(name, val, {retain});

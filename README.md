@@ -421,3 +421,25 @@ Copyright (c) 2015–2026 Sebastian Raff <hobbyquaker@gmail.com>
 
 [gpl-badge]: https://img.shields.io/badge/License-GPL-blue.svg?style=flat
 [gpl-url]: LICENSE
+
+### Communication activity
+
+Each discovered RF device has a **Communication** MQTT event entity for device Activity.
+Its `sent` and `received` event types include the protocol, address, field, value,
+previous value (when known), and occurrence time. `sent` means the write to CUL
+succeeded; FHT commands can remain queued and this does not confirm radio delivery.
+
+Events are published without retention on `<name>/communication/<protocol>/<address>`
+(addresses are lowercase), independently of `publish_events` and `publish_raw`.
+Current state topics remain retained. Retained-state restoration and discovery
+updates never generate communication events. The first received value establishes
+a baseline; subsequent identical reports are suppressed separately for each direction.
+A first report after a sent setting is included as a received response.
+Clock updates, RSSI, availability and raw temperature bytes are excluded. Explicit
+time sync and pairing actions, toggles and timed commands can appear each time.
+
+Baselines are saved every minute and at clean shutdown in the configured state
+directory, which the HA app sets to `/data`. Without a saved baseline, the first
+report is silent. An abrupt app termination can lose the last minute of baselines.
+Existing per-field `event/` topics keep their original behaviour for compatibility.
+The new entity does not remove HA's ordinary startup/availability entries from Activity.

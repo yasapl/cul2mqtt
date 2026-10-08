@@ -34,7 +34,7 @@ describe('discoveryModel', () => {
             mf: 'ELV',
             mdl: 'S300TH',
         });
-        assert.deepEqual(Object.keys(ws.components), ['temperature', 'humidity', 'rssi']);
+        assert.deepEqual(Object.keys(ws.components), ['temperature', 'humidity', 'rssi', 'communication']);
         const t = ws.components.temperature;
         assert.equal(t.p, 'sensor');
         assert.equal(t.name, 'temperature');
@@ -365,7 +365,7 @@ describe('discoveryModel', () => {
             ['em/0205/online', {val: 0, retain: true, raw: 'em/0205/online'}],
         ]);
         const [, ws, em] = discoveryModel({name: 'cul', items});
-        assert.deepEqual(Object.keys(ws.components), ['temperature']);
+        assert.deepEqual(Object.keys(ws.components), ['temperature', 'communication']);
         assert.deepEqual(ws.availability, [
             {
                 t: 'cul/connected',

@@ -1,5 +1,12 @@
 # Changelog
 
+## Home Assistant app 0.2.36
+
+- Add a Communication event entity per RF device, with separate sent/received change activity.
+- Suppress unchanged reports and clock/signal noise; retain baselines across clean app restarts.
+- Keep events non-retained and exclude retained state replay from communication activity.
+- Sent indicates a successful CUL write, not confirmed RF delivery.
+
 ## 1.2.1
 
 ### Fixed
