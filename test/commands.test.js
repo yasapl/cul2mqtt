@@ -1,7 +1,7 @@
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {commandFor, dimCommand} from '../lib/commands.js';
+import {commandFor, dimCommand, unirollSequence} from '../lib/commands.js';
 
 describe('commandFor fs20', () => {
     test('6 hex digit address, text / boolean / numeric commands', () => {
@@ -79,5 +79,66 @@ describe('dimCommand', () => {
         assert.equal(dimCommand(33), 'dim31%');
         assert.equal(dimCommand(99), 'dim100%');
         assert.equal(dimCommand(250), 'dim100%');
+    });
+});
+
+describe('commandFor uniroll', () => {
+    test('group + device as one or two topic parts', () => {
+        assert.deepEqual(commandFor(['uniroll', '1234a'], 'up'), {
+            type: 'uniroll',
+            group: '1234',
+            device: 'A',
+            cmd: 'up',
+        });
+        assert.deepEqual(commandFor(['uniroll', 'abcd', '0'], 'down'), {
+            type: 'uniroll',
+            group: 'ABCD',
+            device: '0',
+            cmd: 'down',
+        });
+    });
+
+    test('Home Assistant cover payloads', () => {
+        assert.equal(commandFor(['uniroll', '12340'], 'OPEN').cmd, 'up');
+        assert.equal(commandFor(['uniroll', '12340'], 'CLOSE').cmd, 'down');
+        assert.equal(commandFor(['uniroll', '12340'], 'STOP').cmd, 'stop');
+    });
+
+    test('rejects unknown commands instead of sending stop', () => {
+        assert.throws(() => commandFor(['uniroll', '12340'], 'toggle'), /unknown command/);
+    });
+
+    test('a number is a target position', () => {
+        assert.deepEqual(commandFor(['uniroll', '12340'], 40), {
+            type: 'uniroll',
+            group: '1234',
+            device: '0',
+            position: 40,
+        });
+        assert.equal(commandFor(['uniroll', '12340'], '91').position, 91);
+        assert.throws(() => commandFor(['uniroll', '12340'], 150), /out of range/);
+    });
+
+    test('rejects malformed addresses', () => {
+        assert.throws(() => commandFor(['uniroll', '1234'], 'up'), /address/);
+        assert.throws(() => commandFor(['uniroll', '123', '40'], 'up'), /address/);
+        assert.throws(() => commandFor(['uniroll', '12G40'], 'up'), /address/);
+        assert.throws(() => commandFor(['uniroll', '1234', '10'], 'up'), /address/);
+        assert.throws(() => commandFor(['uniroll'], 'up'), /address/);
+    });
+});
+
+describe('unirollSequence', () => {
+    test('stop first, like FHEM sendStopBeforeCmd 1', () => {
+        assert.deepEqual(unirollSequence('up'), ['stop', 'up']);
+        assert.deepEqual(unirollSequence('down', true), ['stop', 'down']);
+    });
+
+    test('stop alone is sent once', () => {
+        assert.deepEqual(unirollSequence('stop', true), ['stop']);
+    });
+
+    test('sendStopBeforeCmd 0', () => {
+        assert.deepEqual(unirollSequence('up', false), ['up']);
     });
 });

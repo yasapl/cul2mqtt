@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **UNIRoll send support**: `cul/set/uniroll/<group><device>` with `up` / `down` / `stop` (and the
+  Home Assistant cover payloads `open` / `close`); `--uniroll-devices` announces the shutters as
+  optimistic HA covers, with FHEM's stop-before-command per shutter (`stop_before_cmd`, on by default). UNIRoll cannot be received, so there is no state.
+- **`--only`** (`CUL2MQTT_ONLY`) and **`--ignore`** (`CUL2MQTT_IGNORE`): protocols or devices
+  (`uniroll`, `em/0205`, `fht`, `fs20/6C4800`) cul2mqtt handles exclusively, or neither publishes
+  nor sends to — for moving devices over from another central such as FHEM one at a time.
+- **FS20 covers**: `--fs20-devices` entries with `"type": "cover"` (FS20 RSU and other shutter /
+  awning actuators) become optimistic HA covers. `open` / `close` map to an FS20 command each
+  (`on` / `off` by default), `stop` repeats the running direction, which stops these actuators;
+  `device_class` and an optional `run_time` per device.
+- Docker: state in a `/data` volume (`CUL2MQTT_STATE_DIR`), `docker-compose.example.yml`.
+
+### Changed
+
+- **FHT initialisation is opt-in (`--fht-init`, `CUL2MQTT_FHT_INIT`, off by default).** Before, a
+  newly seen FHT that reported a temperature before its mode and target temperature was set to
+  manual, 16 °C as soon as `--fht-central` was configured — on a first start usually every
+  thermostat in the house, overriding their weekly programs. Without the option cul2mqtt sends to
+  an FHT only when asked to (`set/fht/...`, climate entity, _Sync time_).
+
 ## 1.2.1
 
 ### Fixed

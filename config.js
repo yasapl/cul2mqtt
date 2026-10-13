@@ -35,6 +35,34 @@ export const OPTIONS = {
         type: 'string',
         describe: 'FHT central code (4 hex digits) needed to send set/fht commands',
     },
+    'fht-init': {
+        type: 'boolean',
+        describe: 'set a newly seen FHT without mode/target once to manual, 16 °C (sends unasked!)',
+        default: false,
+    },
+    'fs20-devices': {
+        type: 'string',
+        default: '[]',
+        describe: 'JSON array of explicit FS20 switch/light/cover definitions (name, address, type)',
+    },
+    'uniroll-devices': {
+        type: 'string',
+        default: '[]',
+        describe: 'JSON array of UNIRoll shutters for Home Assistant covers (name, address = group + device, 5 hex)',
+    },
+    'em-basis': {
+        type: 'string',
+        describe:
+            'JSON object of initial EM counter bases in pulses, e.g. {"0205": 123456} (continues a meter reading)',
+    },
+    only: {
+        type: 'string',
+        describe: 'handle only these protocols or devices, e.g. "em/0205,uniroll" (everything else is left alone)',
+    },
+    ignore: {
+        type: 'string',
+        describe: 'protocols or devices to leave alone, e.g. "fht,fs20/6C4800" (not published, not sent to)',
+    },
     'offline-detection': {
         type: 'boolean',
         describe: 'mark silent devices offline on <protocol>/<address>/online (see README)',
@@ -45,6 +73,16 @@ export const OPTIONS = {
         describe: 'widen offline timeouts from observed per-device message gaps',
         default: true,
     },
+    'confirm-count': {
+        type: 'number',
+        describe: 'publish a new device only after this many telegrams within --confirm-window (1 = at once)',
+        default: 3,
+    },
+    'confirm-window': {
+        type: 'number',
+        describe: 'seconds in which a new device must reach --confirm-count telegrams',
+        default: 3600,
+    },
     'state-dir': {
         type: 'string',
         describe: 'directory for persisted state, e.g. learned intervals (default: $STATE_DIRECTORY)',
@@ -54,6 +92,11 @@ export const OPTIONS = {
         type: 'boolean',
         describe: 'additionally publish every raw culfw line on <name>/raw (not retained)',
         default: false,
+    },
+    'publish-events': {
+        type: 'boolean',
+        describe: 'publish every parsed field update on <name>/event/... (not retained)',
+        default: true,
     },
     'raw-set': {
         type: 'boolean',

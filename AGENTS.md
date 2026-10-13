@@ -15,7 +15,7 @@ consistent with lgtv2mqtt 3.0 (the reference adapter).
 
 `<name>/connected` (0/1/2), `<name>/status/<protocol>/<address>[/<field>]` (retained, `{val, ts, lc}`),
 `<name>/status/fs20/<address>` (event, not retained), `<name>/set/fs20/<address>`,
-`<name>/set/fht/<device>/<cmd>`, `<name>/set/raw` (opt-in), `<name>/info`,
+`<name>/set/fht/<device>/<cmd>`, `<name>/set/uniroll/<group><device>`, `<name>/set/raw` (opt-in), `<name>/info`,
 `<name>/maintenance/set/{loglevel,restart}`, `<name>/raw` (opt-in). Do not rename topics outside a
 major release.
 
@@ -27,6 +27,12 @@ major release.
   discovery when new items appear.
 - `lib/items.js` — pure: parsed cul message → items; map file lookup. Extend `SKIP` / special cases
   here when a protocol publishes garbage.
+- `lib/em-counter.js` — pure: EM 16-bit total → `cumulative` (wraparound / reset like FHEM's
+  CUL_EM `basis`), persisted in `--state-dir`, seeded by `--em-basis`.
+- `lib/cover-position.js` — time-based position for UNIRoll / FS20 covers (`seconds_open` /
+  `seconds_close`, like FHEM's ROLLO); `TimedCover` runs the moves, index.js sends and persists.
+- `lib/confirm.js` — new devices are published only after `--confirm-count` telegrams within
+  `--confirm-window`; confirmed devices persisted in `--state-dir`.
 - `lib/commands.js` — pure: `set/<parts>` + payload → cul command (FS20, FHT, raw).
 - `lib/hadiscovery.js` — entity map from the seen items; `FIELDS` holds device classes/units.
 - `lib/install.js` — core installer with `SupplementaryGroups=dialout`.
@@ -38,7 +44,7 @@ major release.
 
 - Plain JavaScript ES modules, 4-space indentation, eslint + prettier (`npm run lint`). Let a failing
   lint stop you.
-- Run commands through WSL (Debian), not PowerShell; the repo lives at `~/repos/cul2mqtt`.
+- On Windows, run commands through WSL (Debian), not PowerShell; elsewhere use the native shell.
 - Minimal dependencies; this runs on a Raspberry Pi next to the CUL.
 - Never make defaults point at personal infrastructure or devices (no personal map file defaults).
 - Log raw traffic at `debug` with `cul <` / `cul >` prefixes; an unplugged CUL is `warn`, not `error`.

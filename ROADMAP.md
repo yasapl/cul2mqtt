@@ -38,7 +38,8 @@ See CHANGELOG.md. Decisions:
       FS20 remotes become HA `event` entities and known actuators `switch`es with `set/fs20/...`.
 - [ ] MAX! (MORITZ) send support once the cul library has it (planned for cul 1.1).
 - [ ] Send support for the other protocols cul 1.0 can transmit (Intertechno, Somfy RTS with
-      persisted rolling codes, Hoermann, UNIRoll) as `set/<protocol>/...`.
+      persisted rolling codes, Hoermann) as `set/<protocol>/...`. UNIRoll done
+      (`set/uniroll/...`, `--uniroll-devices` covers).
 - [ ] Device discovery (`--discover`, B-2): list serial ports with a CUL (USB VID/PID 03EB:204B) and
       `V` version probe (cul 1.0 parses the answer as `{protocol: 'culfw'}`).
 - [x] Device offline detection — done in 1.1.0 (see CHANGELOG and README): retained

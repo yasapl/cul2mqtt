@@ -1,3 +1,8 @@
 node_modules/
 *.tgz
 .DS_Store
+
+# local copy of docker-compose.example.yml
+docker-compose.yml
+# personal Claude Code settings
+.claude/settings.local.json

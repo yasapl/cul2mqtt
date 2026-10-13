@@ -1,0 +1,38 @@
+# cul2mqtt as a plain container next to a containerised Home Assistant.
+# Copy to docker-compose.yml, adjust, `docker compose up -d --build`.
+# Every option is a CUL2MQTT_* variable, see `docker run --rm cul2mqtt --help`.
+
+services:
+  cul2mqtt:
+    build: .
+    image: cul2mqtt:local
+    restart: unless-stopped
+    init: true
+    devices:
+      # the stable by-id path of the stick on the host → a fixed name in the container
+      - /dev/serial/by-id/usb-busware.de_CUL868-if00:/dev/ttyACM0
+    group_add:
+      - dialout # or the numeric gid of the device on the host: stat -c %g /dev/ttyACM0
+    volumes:
+      - ./data:/data # learned offline intervals, FS20 timers (owned by uid 1000)
+      # - ./names.json:/config/names.json:ro
+    environment:
+      CUL2MQTT_SERIALPORT: /dev/ttyACM0
+      # CUL2MQTT_BAUDRATE: "38400" # nanoCUL and other a-culfw sticks; busware CULs use 9600
+      CUL2MQTT_MQTT_URL: mqtt://broker:1883
+      CUL2MQTT_MQTT_USERNAME: cul2mqtt
+      CUL2MQTT_MQTT_PASSWORD: change-me
+      CUL2MQTT_NAME: cul # topic prefix
+      CUL2MQTT_MAINTENANCE: 'false' # no restart/loglevel over mqtt
+      # CUL2MQTT_MAP_FILE: /config/names.json
+
+      # Move devices over one at a time: handle only what is listed, leave the rest alone.
+      CUL2MQTT_ONLY: uniroll
+      # CUL2MQTT_IGNORE: fht fhttk
+
+      # UNIRoll shutters as Home Assistant covers (address = 4 hex group + 1 hex device)
+      CUL2MQTT_UNIROLL_DEVICES: >-
+        [{"name": "Shutter 1", "address": "12340"}]
+      # FS20 actuators as switches / lights
+      # CUL2MQTT_FS20_DEVICES: >-
+      #   [{"name": "Hall light", "address": "6C4800", "type": "light"}]
